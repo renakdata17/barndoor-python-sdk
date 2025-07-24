@@ -15,10 +15,10 @@ The SDK removes boiler-plate around:
 The SDK orchestrates a multi-step flow to connect your code to third-party services:
 
 ```
-You → Auth0 (get JWT) → Registry API (with JWT) → MCP Proxy (with JWT) → Third-party service
+You → Barndoor Auth (get JWT) → Registry API (with JWT) → MCP Proxy (with JWT) → Third-party service
 ```
 
-1. **Authentication**: You log in via Auth0 to get a JWT token
+1. **Authentication**: You log in via Barndoor to get a JWT token
 2. **Registry API**: Using the JWT, query available MCP servers and manage OAuth connections
 3. **MCP Proxy**: Stream requests through Barndoor's proxy with the JWT for authorization
 4. **Third-party service**: The proxy forwards your requests to Salesforce, Notion, etc.
@@ -68,7 +68,7 @@ uv run python -m barndoor.sdk.cli_login
 uv run python examples/sample_notion_agent.py
 ```
 
-**Note:** The OAuth default callback uses port 52765. Make sure this is registered in your Auth0 app as:
+**Note:** The OAuth default callback uses port 52765. Make sure this is registered in your Barndoor Agent as:
 ```
 http://localhost:52765/cb
 ```
@@ -77,7 +77,7 @@ http://localhost:52765/cb
 
 If port `52765` is blocked (or you prefer another), you can:
 
-1. **Register the new callback URL** in your Auth0 application, e.g.
+1. **Register the new callback URL** in your Barndoor Agent application, e.g.
    ```
    http://localhost:60000/cb
    ```
@@ -90,7 +90,7 @@ If port `52765` is blocked (or you prefer another), you can:
    sdk = await bd.login_interactive(port=60000)
    ```
 
-The SDK will spin up the local callback server on that port and embed the new URL in the Auth0 request. Just make sure the same URL is whitelisted in Auth0.
+The SDK will spin up the local callback server on that port and embed the new URL in the request.
 
 The examples expect a `.env` file next to each script containing:
 
@@ -110,7 +110,7 @@ AGENT_CLIENT_SECRET=yyyyyyyyyyyyyyyyyyyy
 
 ## Authentication workflow
 
-Barndoor APIs expect a **user JWT** issued by your organisation’s Auth0 tenant.  The SDK offers two ways to obtain & store such a token:
+Barndoor APIs expect a **user JWT** issued by your Barndoor tenant.  The SDK offers two ways to obtain & store such a token:
 
 | Option | Command | When to use |
 |--------|---------|-------------|
@@ -120,7 +120,7 @@ Barndoor APIs expect a **user JWT** issued by your organisation’s Auth0 tenant
 Both variants:
 
 1. Spin up a tiny localhost callback server.
-2. Open the system browser to Auth0.
+2. Open the system browser to Barndoor.
 3. Exchange the returned *code* for a JWT.
 4. Persist the token to `~/.barndoor/token.json` (0600 permissions).
 
@@ -135,24 +135,6 @@ BARNDOOR_API=http://localhost:8003
 ```
 
 The cached token is auto-refreshed on every run; if it is expired or revoked a new browser flow is launched.
-
----
-
-## Auth0 Application Setup
-
-When configuring your Auth0 "Agent" application, make sure to:
-
-1. Add the following to **Allowed Callback URLs**:
-   ```
-   http://localhost:52765/cb
-   http://127.0.0.1:52765/cb
-   ```
-
-2. Set the **Application Type** to "Native" or "Single Page Application"
-
-3. Enable the **Authorization Code** flow with PKCE
-
----
 
 ## Quick-start in four lines
 
