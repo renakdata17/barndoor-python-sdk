@@ -28,6 +28,8 @@ dependencies = [
     "langgraph-cli",
     "langgraph>=0.5.3",
     "langchain-mcp-adapters",
+    "llama-index",  # meta package with core + common extras
+    "llama-index-tools-mcp",
     "composio-langgraph>=0.1.0",
     "nest-asyncio>=1.6.0",
     "notion-client>=2.3.0",
