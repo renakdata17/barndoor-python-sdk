@@ -82,7 +82,7 @@ async def main() -> None:
             description=(
                 "Fetch the latest Salesforce pipeline metrics (total value, open opportunities per stage) "
                 "and return a concise *written* report – 3-5 bullet points – analysing any noteworthy changes "
-                "since yesterday."
+                "since yesterday. Also detail the leads with a separate query/section"
             ),
             expected_output=(
                 "A markdown-formatted report, for example:\n"
