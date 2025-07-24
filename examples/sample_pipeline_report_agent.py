@@ -15,7 +15,7 @@ Environment / prerequisites
    user has *connected* them.  If not, the helper below will launch the OAuth
    flows.
 2. Make sure the repo-root `.env` contains:
-       AUTH0_DOMAIN=…
+       AUTH_DOMAIN=…
        AGENT_CLIENT_ID=…
        AGENT_CLIENT_SECRET=…
    and export the desired ``MODE`` (localdev | development | production) –
@@ -43,7 +43,7 @@ NOTION_SLUG = "notion"
 
 
 async def main() -> None:  # noqa: D401
-    # Load Auth0 creds from repo-root .env so all samples share the same file
+    # Load auth creds from repo-root .env so all samples share the same file
     load_dotenv(Path(__file__).parent.parent / ".env")
 
     sdk = await bd.login_interactive()

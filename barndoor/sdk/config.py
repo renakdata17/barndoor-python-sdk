@@ -84,7 +84,7 @@ def _bool(key: str, default: bool = False) -> bool:
 class AppConfig(BaseModel):
     """All configuration values that never change during a Python session."""
 
-    AUTH0_DOMAIN: str = "barndoor-local.us.auth0.com"
+    AUTH_DOMAIN: str = "auth.barndoor.ai"
     AGENT_CLIENT_ID: str = ""
     AGENT_CLIENT_SECRET: str = ""
 
@@ -129,7 +129,7 @@ def _build_static_config() -> AppConfig:
         _url_default = "http://localhost:8080"
 
     return AppConfig(
-        AUTH0_DOMAIN=_getenv_any(["AUTH0_DOMAIN", "LOGIN_AUTH_DOMAIN"], defaults.AUTH0_DOMAIN),
+        AUTH_DOMAIN=_getenv_any(["AUTH_DOMAIN", "AUTH0_DOMAIN", "LOGIN_AUTH_DOMAIN"], defaults.AUTH_DOMAIN),
         AGENT_CLIENT_ID=_getenv_any(["AGENT_CLIENT_ID", "AUTH_CLIENT_ID"], defaults.AGENT_CLIENT_ID),
         AGENT_CLIENT_SECRET=_getenv_any(["AGENT_CLIENT_SECRET", "AUTH_CLIENT_SECRET"], defaults.AGENT_CLIENT_SECRET),
         API_AUDIENCE=os.getenv("API_AUDIENCE", defaults.API_AUDIENCE),

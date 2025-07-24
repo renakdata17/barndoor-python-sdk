@@ -95,15 +95,7 @@ The SDK will spin up the local callback server on that port and embed the new UR
 The examples expect a `.env` file next to each script containing:
 
 ```bash
-# Minimal .env (local or dev)
-AUTH0_DOMAIN=barndoor-local.us.auth0.com      # or your dev tenant
-AGENT_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxx
-AGENT_CLIENT_SECRET=yyyyyyyyyyyyyyyyyyyy
-
-# Optional – only when you need to override the defaults
-# MODE=development          # localdev | development | production
-# BARNDOOR_API=…            # custom registry host
-# BARNDOOR_URL=…            # custom MCP host
+# Copy env.example → .env and add your credentials
 ```
 
 ---
@@ -130,8 +122,7 @@ Environment variables (or a neighbouring `.env` file) must define the Agent OAut
 AGENT_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxx
 AGENT_CLIENT_SECRET=yyyyyyyyyyyyyyyyyyyy
 # optional overrides
-AUTH0_DOMAIN=barndoor-local.us.auth0.com
-BARNDOOR_API=http://localhost:8003
+# See `internal_dev_env_setup` guide for local/dev options
 ```
 
 The cached token is auto-refreshed on every run; if it is expired or revoked a new browser flow is launched.
