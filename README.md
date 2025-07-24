@@ -4,7 +4,7 @@ A lightweight, **framework-agnostic** Python client for the Barndoor Platform RE
 
 The SDK removes boiler-plate around:
 
-* Secure, offline-friendly **Auth0 authentication** (interactive PKCE flow + token caching).
+* Secure, offline-friendly **authentication to Barndoor** (interactive PKCE flow + token caching).
 * **Server registry** – list, inspect and connect third-party providers (Salesforce, Notion, Slack …).
 * **Managed Connector Proxy** – build ready-to-use connection parameters for any LLM/agent framework (CrewAI, LangChain, custom code …) without importing Barndoor-specific adapters.
 
