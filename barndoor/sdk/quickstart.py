@@ -84,8 +84,8 @@ async def login_interactive(
     ----------
     auth_domain
         Your Auth0 tenant domain (without the ``https://``).
-        Defaults to the ``AUTH0_DOMAIN`` environment variable or the SDK's
-        built-in localhost tenant.
+        Defaults to the ``AUTH_DOMAIN`` environment variable or the SDK's
+        built-in production tenant domain ``auth.barndoor.ai``.
     client_id / client_secret
         The OAuth Client configured for *Agent* access.  Pulled from
         ``AGENT_CLIENT_ID`` / ``AGENT_CLIENT_SECRET`` env vars when omitted.
@@ -100,7 +100,7 @@ async def login_interactive(
 
     cfg = get_static_config()
 
-    auth_domain = auth_domain or cfg.AUTH0_DOMAIN
+    auth_domain = auth_domain or cfg.AUTH_DOMAIN
     client_id = client_id or cfg.AGENT_CLIENT_ID
     client_secret = client_secret or cfg.AGENT_CLIENT_SECRET
 

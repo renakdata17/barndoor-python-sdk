@@ -27,6 +27,7 @@ coverage.xml
 # Local environment & secrets
 .env
 .env.*
+internal_dev_env_setup.*
 
 # Logs
 *.log

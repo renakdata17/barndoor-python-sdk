@@ -114,8 +114,8 @@ async def main():
 
     Environment Variables
     ---------------------
-    AUTH0_DOMAIN : str
-        Auth0 domain (defaults to "barndoor-local.us.auth0.com")
+    AUTH_DOMAIN : str
+        Auth domain (production default "auth.barndoor.ai"; override for dev/local if needed)
     AGENT_CLIENT_ID : str
         OAuth client ID (required)
     AGENT_CLIENT_SECRET : str
@@ -143,7 +143,7 @@ async def main():
         return
 
     # Get configuration from environment
-    auth_domain = cfg.AUTH0_DOMAIN
+    auth_domain = cfg.AUTH_DOMAIN
     client_id = cfg.AGENT_CLIENT_ID
     client_secret = cfg.AGENT_CLIENT_SECRET
     audience = "https://barndoor.api/"
