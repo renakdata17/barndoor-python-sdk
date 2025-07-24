@@ -148,7 +148,7 @@ params, _public_url = await bd.make_mcp_connection_params(sdk, "salesforce")
 servers = await sdk.list_servers()
 print([s.slug for s in servers])  # ['salesforce', 'notion', ...]
 
-# Get detailed metadata (quota, scopes, etc.)
+# Get detailed metadata
 details = await sdk.get_server(server_id=servers[0].id)
 print(details)
 ```
