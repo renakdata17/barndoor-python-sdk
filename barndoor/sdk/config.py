@@ -89,8 +89,8 @@ class AppConfig(BaseModel):
     AGENT_CLIENT_SECRET: str = ""
 
     API_AUDIENCE: str = "https://barndoor.api/"
-    BARNDOOR_API: str = "http://localhost:8003"  # Registry / Identity API
-    BARNDOOR_URL: str = "http://localhost:8080"  # MCP base URL template
+    BARNDOOR_API: str = "https://api.barndoor.ai"  # Registry / Identity API
+    BARNDOOR_URL: str = "https://{organization_id}.mcp.barndoor.ai"  # MCP base URL template
 
     PROMPT_FOR_LOGIN: bool = False
     SKIP_LOGIN_LOCAL: bool = False
@@ -125,8 +125,8 @@ def _build_static_config() -> AppConfig:
         _api_default = "https://{organization_id}.mcp.barndoordev.com"
         _url_default = _api_default
     else:  # local development
-        _api_default = "http://localhost:8003"
-        _url_default = "http://localhost:8080"
+        _api_default = "https://{organization_id}.mcp.barndoor.ai"
+        _url_default = _api_default
 
     return AppConfig(
         AUTH_DOMAIN=_getenv_any(["AUTH_DOMAIN", "AUTH0_DOMAIN", "LOGIN_AUTH_DOMAIN"], defaults.AUTH_DOMAIN),

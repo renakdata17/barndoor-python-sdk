@@ -36,7 +36,7 @@ async def interactive_login(
     client_id: str,
     client_secret: str,
     audience: str,
-    api_base_url: str = "http://localhost:8003",
+    api_base_url: str = "https://api.barndoor.ai",
     port: int = 52765,
 ) -> str:
     """Perform interactive OAuth login flow.
@@ -55,7 +55,7 @@ async def interactive_login(
     audience : str
         API audience identifier
     api_base_url : str, optional
-        Base URL of the Barndoor API. Default is "http://localhost:8003"
+        Base URL of the Barndoor API. Default is "https://api.barndoor.ai"
     port : int, optional
         Local port for OAuth callback. Default is 8765
 
@@ -121,7 +121,7 @@ async def main():
     AGENT_CLIENT_SECRET : str
         OAuth client secret (required)
     BARNDOOR_API : str
-        API base URL (defaults to "http://localhost:8003")
+        API base URL (defaults to "https://api.barndoor.ai")
 
     Exit Codes
     ----------

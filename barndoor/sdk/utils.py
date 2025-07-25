@@ -66,8 +66,10 @@ def external_mcp_url(
             region = os.getenv("AWS_REGION", "us-east-1")
         base = f"https://api-dev-{region}.barndoor.ai"
     else:
-        # Local development
-        base = "http://localhost:8080"
+        # Treat local as dev default (use dev-style URL)
+        if not region:
+            region = os.getenv("AWS_REGION", "us-east-1")
+        base = f"https://api-dev-{region}.barndoor.ai"
 
     # URL-encode the token to handle special characters
     encoded_token = quote(jwt_token, safe="")

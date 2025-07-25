@@ -93,7 +93,7 @@ async def login_interactive(
         The audience for which we request the token.
     api_base_url
         Base URL of the Registry/Identity API.  Defaults to the
-        ``BARNDOOR_API`` environment variable or ``http://localhost:8003``.
+        ``BARNDOOR_API`` environment variable or ``https://api.barndoor.ai``.
     port
         Callback port for the temporary local HTTP server.
     """
@@ -200,9 +200,7 @@ async def make_mcp_connection_params(
 
     cfg_dyn = get_dynamic_config(str(sdk.token))
 
-    if env in {"localdev", "local"}:
-        url = f"http://localhost:8080/mcp/{server_slug}"
-    elif env in {"development", "dev"}:
+    if env in {"localdev", "local", "development", "dev"}:
         # Use org-aware MCP host from config
         url = f"{cfg_dyn.BARNDOOR_URL}/mcp/{server_slug}"
     else:  # production (or any other value)

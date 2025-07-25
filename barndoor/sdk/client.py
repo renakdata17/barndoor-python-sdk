@@ -305,7 +305,7 @@ class BarndoorSDK:
         client_secret: str,
         audience: str,
         *,
-        api_base_url: str = "http://localhost:8003",
+        api_base_url: str = "https://api.barndoor.ai",
         port: int = 52765,
     ) -> "BarndoorSDK":
         """Perform interactive login and return an initialized SDK instance.
@@ -325,7 +325,7 @@ class BarndoorSDK:
         audience : str
             API audience identifier
         api_base_url : str, optional
-            Base URL of the Barndoor API. Default is "http://localhost:8003"
+            Base URL of the Barndoor API. Default is "https://api.barndoor.ai"
         port : int, optional
             Local port for OAuth callback. Default is 8765
 
@@ -418,8 +418,6 @@ class BarndoorSDK:
         import asyncio
         import webbrowser
 
-        from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
-
         # 1. locate server
         servers = await self.list_servers()
         target = next(
@@ -443,23 +441,6 @@ class BarndoorSDK:
         auth_url = conn.get("auth_url")
         if not auth_url:
             raise RuntimeError("Registry did not return auth_url")
-
-        # Rewrite redirect_uri for CLI usage (localhost backend callback)
-        parsed = urlparse(auth_url)
-        params = parse_qs(parsed.query)  # type: ignore[arg-type]
-        if params.get("redirect_uri", [""])[0] == "http://localhost:3000/callback":
-            params["redirect_uri"] = ["http://localhost:8003/callback"]  # type: ignore[index]
-            new_query = urlencode(params, doseq=True)
-            auth_url = urlunparse(
-                (
-                    parsed.scheme,
-                    parsed.netloc,
-                    parsed.path,
-                    parsed.params,
-                    new_query,
-                    parsed.fragment,
-                )  # type: ignore[arg-type]
-            )
 
         webbrowser.open(auth_url)
 
