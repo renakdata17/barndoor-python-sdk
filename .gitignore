@@ -41,4 +41,4 @@ internal_dev_env_setup.*
 Thumbs.db 
 
 # uv lockfile (regenerate locally)
-uv.lock 
+./uv.lock 
