@@ -40,4 +40,4 @@ coverage.xml
 Thumbs.db 
 
 # uv lockfile (regenerate locally)
-uv.lock 
+./uv.lock 
