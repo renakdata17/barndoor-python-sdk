@@ -22,7 +22,7 @@ class TestLoginInteractive:
         token_file = temp_token_dir / "token.json"
         token_file.write_text('{"access_token": "' + mock_token + '"}')
         
-        with patch("barndoor.sdk.quickstart.is_token_active", return_value=True):
+        with patch("barndoor.sdk.quickstart.is_token_active_with_refresh", return_value=True):
             sdk = await login_interactive()
             assert sdk.token == mock_token
             await sdk.aclose()

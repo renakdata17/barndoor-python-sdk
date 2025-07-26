@@ -53,6 +53,9 @@ load_dotenv_for_sdk()
 # Internal imports -----------------------------------------------------------
 from .client import BarndoorSDK
 from .utils import external_mcp_url
+from .logging import get_logger
+
+logger = get_logger("quickstart")
 
 
 # ---------------------------------------------------------------------------
@@ -68,61 +71,35 @@ async def login_interactive(
     auth_domain: str | None = None,
     client_id: str | None = None,
     client_secret: str | None = None,
-    audience: str = "https://barndoor.ai/",
+    audience: str | None = None,  
     api_base_url: str | None = None,
     port: int = 52765,
 ) -> BarndoorSDK:
-    """Return an *initialized* :class:`BarndoorSDK` after making sure a valid
-    user JWT is available.
-
-    The helper will first look for a cached token (``~/.barndoor/token.json``),
-    validate it against the ``/identity/token`` endpoint and – if necessary –
-    run the interactive Auth0 login flow.  The resulting JWT is persisted so
-    the next invocation is instant.
-
-    Parameters
-    ----------
-    auth_domain
-        Your Auth0 tenant domain (without the ``https://``).
-        Defaults to the ``AUTH_DOMAIN`` environment variable or the SDK's
-        built-in production tenant domain ``auth.barndoor.ai``.
-    client_id / client_secret
-        The OAuth Client configured for *Agent* access.  Pulled from
-        ``AGENT_CLIENT_ID`` / ``AGENT_CLIENT_SECRET`` env vars when omitted.
-    audience
-        The audience for which we request the token.
-    api_base_url
-        Base URL of the Registry/Identity API.  Defaults to the
-        ``BARNDOOR_API`` environment variable or ``https://{organization_id}.mcp.barndoor.ai``.
-    port
-        Callback port for the temporary local HTTP server.
-    """
-
+    """Return an initialized BarndoorSDK after ensuring valid user JWT."""
+    from .auth_store import is_token_active_with_refresh
+    
+    logger.info("Starting interactive login flow")
+    
     cfg = get_static_config()
 
-    auth_domain = auth_domain or cfg.AUTH_DOMAIN
-    client_id = client_id or cfg.AGENT_CLIENT_ID
-    client_secret = client_secret or cfg.AGENT_CLIENT_SECRET
-
-    # We can only substitute {organization_id} once we have a JWT.  Therefore
-    # we defer choosing the final API base until after *token* is available
-    # (either loaded from cache or freshly obtained).
+    auth_domain = auth_domain or cfg.auth_domain
+    client_id = client_id or cfg.client_id
+    client_secret = client_secret or cfg.client_secret
+    audience = audience or cfg.api_audience  # Use config value
 
     if not client_id or not client_secret:
         raise RuntimeError(
             "AGENT_CLIENT_ID / AGENT_CLIENT_SECRET not set – create a .env file or export in the shell",
         )
 
-    # 1. try cached token --------------------------------------------------
-    token = load_user_token()
-
-    env_mode = (os.getenv("BARNDOOR_ENV") or os.getenv("MODE", "prod")).lower()
-
-    # Always trust the cached token; if it is expired the first API call will
-    # return 401 and the application can decide how to handle re-login.
-
-    # 2. if none – run interactive PKCE flow ------------------------------
-    if not token:
+    # 1. try cached token with refresh ----------------------------------
+    token_data = None
+    if await is_token_active_with_refresh(api_base_url or cfg.api_base_url):
+        logger.info("Using cached/refreshed valid token")
+        token_data = load_user_token()
+    else:
+        logger.info("No valid cached token, starting OAuth flow")
+        # 2. if none – run interactive PKCE flow --------------------------
         redirect_uri, waiter = start_local_callback_server(port=port)
         auth_url = build_authorization_url(
             domain=auth_domain,
@@ -130,28 +107,30 @@ async def login_interactive(
             redirect_uri=redirect_uri,
             audience=audience,
         )
-        import webbrowser  # local import to avoid side-effects when not needed
+        import webbrowser
         webbrowser.open(auth_url)
         logging.getLogger(__name__).info("Please complete login in your browser…")
         code, _state = await waiter
-        token = exchange_code_for_token_backend(
+        token_data = exchange_code_for_token_backend(
             domain=auth_domain,
             client_id=client_id,
             client_secret=client_secret,
             code=code,
             redirect_uri=redirect_uri,
         )
-        save_user_token(token)
+        save_user_token(token_data)
 
-    # 3. build dynamic configuration (replaces {organization_id})
+    # Extract access token for SDK
+    access_token = token_data if isinstance(token_data, str) else token_data["access_token"]
+    
+    # 3. build dynamic configuration
     from barndoor.sdk.config import get_dynamic_config
+    cfg_dyn = get_dynamic_config(access_token)
+    api_base_url = api_base_url or cfg_dyn.api_base_url
 
-    cfg_dyn = get_dynamic_config(token)
-
-    api_base_url = api_base_url or cfg_dyn.BARNDOOR_API
-
-    # 4. create SDK --------------------------------------------------------
-    sdk = BarndoorSDK(api_base_url, barndoor_token=token, validate_token_on_init=False)
+    # 4. create SDK
+    sdk = BarndoorSDK(api_base_url, barndoor_token=access_token, validate_token_on_init=False)
+    logger.info("Login completed successfully")
     return sdk
 
 
@@ -167,6 +146,20 @@ async def ensure_server_connected(
     launches the browser OAuth flow and waits (up to *timeout* seconds) until
     the connection is live.
     """
+    logger.info(f"Ensuring {server_identifier} server is connected")
+    
+    servers = await sdk.list_servers()
+    server = next((s for s in servers if s.slug == server_identifier), None)
+    
+    if not server:
+        logger.error(f"Server '{server_identifier}' not found")
+        raise ValueError(f"Server '{server_identifier}' not found")
+        
+    if server.connection_status == "connected":
+        logger.info(f"Server {server_identifier} already connected")
+        return
+        
+    logger.info(f"Connecting to {server_identifier}...")
     await sdk.ensure_server_connected(server_identifier, poll_seconds=timeout)
 
 
@@ -202,7 +195,7 @@ async def make_mcp_connection_params(
 
     if env in {"localdev", "local", "development", "dev"}:
         # Use org-aware MCP host from config
-        url = f"{cfg_dyn.BARNDOOR_URL}/mcp/{server_slug}"
+        url = f"{cfg_dyn.mcp_base_url}/mcp/{server_slug}"
     else:  # production (or any other value)
         url = external_mcp_url(
             server_slug=server_slug,

@@ -162,29 +162,12 @@ class BarndoorSDK:
     # ---------------- Registry -----------------
 
     async def list_servers(self) -> List[ServerSummary]:
-        """List all MCP servers available to the caller's organization.
-
-        Retrieves a list of servers that the authenticated user has
-        access to, including their connection status.
-
-        Returns
-        -------
-        List[ServerSummary]
-            List of server summaries containing id, name, slug, provider,
-            and connection_status for each server
-
-        Raises
-        ------
-        HTTPError
-            If the API request fails
-        ConnectionError
-            If unable to connect to the API
-        """
+        """List all MCP servers available to the caller's organization."""
         await self.ensure_valid_token()
         logger.debug("Fetching server list")
         try:
             resp = await self._req("GET", f"{self.base}/servers")
-            servers = [ServerSummary.model_validate(o) for o in resp.json()]
+            servers = [ServerSummary.model_validate(o) for o in resp]  # Remove .json()
             logger.info(f"Retrieved {len(servers)} servers")
             return servers
         except Exception as e:

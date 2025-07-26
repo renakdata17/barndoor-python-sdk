@@ -170,3 +170,13 @@ params, public_url = await bd.make_mcp_connection_params(sdk, "notion")
 print(params["url"])         # http(s)://…/mcp/notion
 print(params["headers"])     # {'Authorization': 'Bearer ey…', 'x-barndoor-session-id': …}
 ```
+
+## API Documentation
+
+The complete API specification is available in [`barndoor/sdk/docs/openapi.yaml`](./barndoor/sdk/docs/openapi.yaml). This covers all endpoints currently used by the SDK including:
+
+- Server listing and details
+- OAuth connection initiation  
+- Connection status checking
+
+The spec can be viewed with tools like [Swagger UI](https://swagger.io/tools/swagger-ui/) or [Redoc](https://redocly.github.io/redoc/).
