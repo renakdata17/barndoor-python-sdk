@@ -35,13 +35,13 @@ def temp_token_dir():
 @pytest.fixture
 def isolated_token_file():
     """Create an isolated token file for testing legacy functions."""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-        token_file = Path(f.name)
-    try:
-        yield token_file
-    finally:
-        if token_file.exists():
-            token_file.unlink()
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        # Create the .barndoor directory structure
+        barndoor_dir = temp_path / ".barndoor"
+        barndoor_dir.mkdir()
+        token_file = barndoor_dir / "token.json"
+        yield temp_path, token_file
 
 
 @pytest.fixture
@@ -366,55 +366,68 @@ class TestFileLocking:
 class TestLegacyFunctions:
     """Test legacy token management functions."""
 
-    def test_load_user_token_success(self, temp_token_dir, sample_token_data):
+    def test_load_user_token_success(self, isolated_token_file, sample_token_data):
         """Test load_user_token with valid token file."""
-        token_file = temp_token_dir / "token.json"
+        home_dir, token_file = isolated_token_file
         with open(token_file, 'w') as f:
             json.dump(sample_token_data, f)
-        
-        with patch("barndoor.sdk.auth_store.TOKEN_FILE", token_file):
+
+        # Patch the hardcoded path in load_user_token
+        with patch("pathlib.Path.home") as mock_home:
+            mock_home.return_value = home_dir
             token = load_user_token()
             assert token == sample_token_data["access_token"]
 
-    def test_load_user_token_missing_file(self, temp_token_dir):
+    def test_load_user_token_missing_file(self, isolated_token_file):
         """Test load_user_token when file doesn't exist."""
-        token_file = temp_token_dir / "nonexistent.json"
-        
-        with patch("barndoor.sdk.auth_store.TOKEN_FILE", token_file):
+        home_dir, token_file = isolated_token_file
+        # Ensure file doesn't exist
+        if token_file.exists():
+            token_file.unlink()
+
+        # Patch the hardcoded path in load_user_token
+        with patch("pathlib.Path.home") as mock_home:
+            mock_home.return_value = home_dir
             token = load_user_token()
             assert token is None
 
-    def test_save_user_token_string(self, temp_token_dir):
+    def test_save_user_token_string(self, isolated_token_file):
         """Test save_user_token with string token."""
-        token_file = temp_token_dir / "token.json"
-        
-        with patch("barndoor.sdk.auth_store.TOKEN_FILE", token_file):
+        home_dir, token_file = isolated_token_file
+
+        # Patch the hardcoded path in save_user_token
+        with patch("pathlib.Path.home") as mock_home:
+            mock_home.return_value = home_dir
             save_user_token("test_token")
-            
+
             with open(token_file, 'r') as f:
                 data = json.load(f)
-            
+
             assert data["access_token"] == "test_token"
 
-    def test_save_user_token_dict(self, temp_token_dir, sample_token_data):
+    def test_save_user_token_dict(self, isolated_token_file, sample_token_data):
         """Test save_user_token with dict token."""
-        token_file = temp_token_dir / "token.json"
-        
-        with patch("barndoor.sdk.auth_store.TOKEN_FILE", token_file):
+        home_dir, token_file = isolated_token_file
+
+        # Patch the hardcoded path in save_user_token
+        with patch("pathlib.Path.home") as mock_home:
+            mock_home.return_value = home_dir
             save_user_token(sample_token_data)
-            
+
             with open(token_file, 'r') as f:
                 data = json.load(f)
-            
+
             assert data == sample_token_data
 
-    def test_clear_cached_token(self, temp_token_dir, sample_token_data):
+    def test_clear_cached_token(self, isolated_token_file, sample_token_data):
         """Test clear_cached_token function."""
-        token_file = temp_token_dir / "token.json"
+        home_dir, token_file = isolated_token_file
         with open(token_file, 'w') as f:
             json.dump(sample_token_data, f)
 
-        with patch("barndoor.sdk.auth_store.TOKEN_FILE", token_file):
+        # Patch the hardcoded path in clear_cached_token
+        with patch("pathlib.Path.home") as mock_home:
+            mock_home.return_value = home_dir
             clear_cached_token()
             assert not token_file.exists()
 
