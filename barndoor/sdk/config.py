@@ -88,8 +88,8 @@ class AppConfig(BaseModel):
     AGENT_CLIENT_ID: str = ""
     AGENT_CLIENT_SECRET: str = ""
 
-    API_AUDIENCE: str = "https://barndoor.api/"
-    BARNDOOR_API: str = "https://api.barndoor.ai"  # Registry / Identity API
+    API_AUDIENCE: str = "https://barndoor.ai/"
+    BARNDOOR_API: str = "https://{organization_id}.mcp.barndoor.ai"  # Registry / Identity API
     BARNDOOR_URL: str = "https://{organization_id}.mcp.barndoor.ai"  # MCP base URL template
 
     PROMPT_FOR_LOGIN: bool = False

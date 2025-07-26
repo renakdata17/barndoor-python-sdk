@@ -68,7 +68,7 @@ async def login_interactive(
     auth_domain: str | None = None,
     client_id: str | None = None,
     client_secret: str | None = None,
-    audience: str = "https://barndoor.api/",
+    audience: str = "https://barndoor.ai/",
     api_base_url: str | None = None,
     port: int = 52765,
 ) -> BarndoorSDK:
@@ -93,7 +93,7 @@ async def login_interactive(
         The audience for which we request the token.
     api_base_url
         Base URL of the Registry/Identity API.  Defaults to the
-        ``BARNDOOR_API`` environment variable or ``https://api.barndoor.ai``.
+        ``BARNDOOR_API`` environment variable or ``https://{organization_id}.mcp.barndoor.ai``.
     port
         Callback port for the temporary local HTTP server.
     """

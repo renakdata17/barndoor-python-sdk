@@ -47,7 +47,7 @@ def external_mcp_url(
     Examples
     --------
     >>> url = external_mcp_url("my-server", "jwt123", env="prod")
-    >>> # Returns: https://api.barndoor.ai/mcp/my-server?token=jwt123
+    >>> # Returns: https://{organization_id}.mcp.barndoor.ai/mcp/my-server?token=jwt123
 
     >>> url = external_mcp_url("my-server", "jwt123", env="dev", region="us-west-2")
     >>> # Returns: https://api-dev-us-west-2.barndoor.ai/mcp/my-server?token=jwt123
@@ -59,7 +59,9 @@ def external_mcp_url(
     distribution and caching.
     """
     if env == "prod":
-        base = "https://api.barndoor.ai"
+        # Note: The {organization_id} placeholder is replaced by the SDK's
+        # dynamic configuration system when a JWT token is available
+        base = "https://{organization_id}.mcp.barndoor.ai"
     elif env == "dev":
         # For dev, include region in subdomain
         if not region:

@@ -62,7 +62,7 @@ def get_client_credentials_token(
     client_secret : str
         OAuth client secret for the application
     audience : str
-        API audience identifier (e.g., "https://barndoor.api/")
+        API audience identifier (e.g., "https://barndoor.ai/")
 
     Returns
     -------
@@ -117,7 +117,7 @@ def build_authorization_url(
     redirect_uri : str
         URL where Auth0 will redirect after authentication
     audience : str
-        API audience identifier (e.g., "https://barndoor.api/")
+        API audience identifier (e.g., "https://barndoor.ai/")
     scope : str, optional
         OAuth scopes to request. Default is "openid profile email"
 
