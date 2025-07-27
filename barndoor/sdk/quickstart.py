@@ -185,8 +185,8 @@ async def make_mcp_connection_params(
     if server_slug not in {s.slug for s in servers}:
         raise ValueError(f"Server '{server_slug}' not found for current user")
 
-    # 2. decide proxy vs public based on env (default taken from MODE / BARNDO_ENV)
-    env = (os.getenv("BARNDO_ENV") or os.getenv("MODE", "localdev")).lower()
+    # 2. decide proxy vs public based on env (default taken from MODE / BARNDOOR_ENV)
+    env = (os.getenv("BARNDOOR_ENV") or os.getenv("MODE", "localdev")).lower()
 
     # Build dynamic configuration (slug already substituted)
     from barndoor.sdk.config import get_dynamic_config
