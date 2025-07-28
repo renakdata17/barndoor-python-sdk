@@ -6,10 +6,8 @@ info:
     Minimal contract covering the publicly-exposed endpoints currently used by
     the Python SDK. Expand as new endpoints become stable.
 servers:
-  - url: https://api.barndoor.host
+  - url: https://{organization_id}.mcp.barndoor.ai
     description: Production
-  - url: http://localhost:8003
-    description: Local development
 paths:
   /servers:
     get:
