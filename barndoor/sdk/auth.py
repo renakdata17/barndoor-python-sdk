@@ -30,6 +30,7 @@ __all__ = [
     "start_local_callback_server",
     "exchange_code_for_token",
     "exchange_code_for_token_backend",
+    "refresh_access_token",
 ]
 
 _code_verifier: str | None = None
@@ -62,7 +63,7 @@ def get_client_credentials_token(
     client_secret : str
         OAuth client secret for the application
     audience : str
-        API audience identifier (e.g., "https://barndoor.api/")
+        API audience identifier (e.g., "https://barndoor.ai/")
 
     Returns
     -------
@@ -100,7 +101,7 @@ def build_authorization_url(
     client_id: str,
     redirect_uri: str,
     audience: str,
-    scope: str = "openid profile email",
+    scope: str = "openid profile email offline_access",
 ) -> str:
     """Build a PKCE-enabled Auth0 authorization URL.
 
@@ -117,9 +118,9 @@ def build_authorization_url(
     redirect_uri : str
         URL where Auth0 will redirect after authentication
     audience : str
-        API audience identifier (e.g., "https://barndoor.api/")
+        API audience identifier (e.g., "https://barndoor.ai/")
     scope : str, optional
-        OAuth scopes to request. Default is "openid profile email"
+        OAuth scopes to request. Default is "openid profile email offline_access"
 
     Returns
     -------
@@ -153,6 +154,7 @@ def build_authorization_url(
         "state": _current_state,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
+        "prompt": "consent",  # Forces consent screen for refresh tokens
     }
     return f"https://{domain}/authorize?{urlencode(params)}"
 
@@ -235,45 +237,8 @@ def exchange_code_for_token(
     code: str,
     redirect_uri: str,
     client_secret: str | None = None,
-) -> str:
-    """Exchange an authorization code for an access token.
-
-    Completes the OAuth 2.0 authorization code flow by exchanging the code
-    received from the authorization server for an access token. Supports both
-    PKCE (public clients) and confidential client flows.
-
-    Parameters
-    ----------
-    domain : str
-        Auth0 domain (e.g., "barndoor.us.auth0.com")
-    client_id : str
-        OAuth client ID for the application
-    code : str
-        Authorization code received from the callback
-    redirect_uri : str
-        Same redirect URI used in the authorization request
-    client_secret : str, optional
-        OAuth client secret. Required for confidential clients,
-        optional for PKCE flow
-
-    Returns
-    -------
-    str
-        The access token (JWT) for API authentication
-
-    Raises
-    ------
-    RuntimeError
-        If PKCE flow is attempted but code_verifier is missing
-    httpx.HTTPStatusError
-        If the token exchange fails (e.g., invalid code)
-
-    Notes
-    -----
-    For PKCE flow (no client_secret), this function expects that
-    build_authorization_url() was called first to set up the code_verifier.
-    For confidential clients, provide the client_secret parameter.
-    """
+) -> dict:  # Return full token response
+    """Exchange an authorization code for tokens."""
     payload: Dict[str, Any] = {
         "grant_type": "authorization_code",
         "client_id": client_id,
@@ -293,7 +258,7 @@ def exchange_code_for_token(
 
     resp = httpx.post(f"https://{domain}/oauth/token", json=payload, timeout=15)
     resp.raise_for_status()
-    return resp.json()["access_token"]
+    return resp.json()  # Return full response with refresh_token
 
 
 def exchange_code_for_token_backend(
@@ -302,40 +267,8 @@ def exchange_code_for_token_backend(
     client_secret: str,
     code: str,
     redirect_uri: str,
-) -> str:
-    """Exchange authorization code for token using client credentials.
-
-    Backend-specific helper that always uses client_secret authentication
-    (no PKCE). This is suitable for server-side applications that can
-    securely store the client secret.
-
-    Parameters
-    ----------
-    domain : str
-        Auth0 domain (e.g., "barndoor.us.auth0.com")
-    client_id : str
-        OAuth client ID for the application
-    client_secret : str
-        OAuth client secret for the application
-    code : str
-        Authorization code received from the callback
-    redirect_uri : str
-        Same redirect URI used in the authorization request
-
-    Returns
-    -------
-    str
-        The access token (JWT) for API authentication
-
-    Raises
-    ------
-    httpx.HTTPStatusError
-        If the token exchange fails
-
-    See Also
-    --------
-    exchange_code_for_token : More flexible version supporting PKCE
-    """
+) -> dict:  # Return full token response
+    """Exchange authorization code for tokens using client credentials."""
     return exchange_code_for_token(
         domain=domain,
         client_id=client_id,
@@ -343,3 +276,21 @@ def exchange_code_for_token_backend(
         redirect_uri=redirect_uri,
         client_secret=client_secret,
     )
+
+
+def refresh_access_token(
+    refresh_token: str, 
+    client_id: str, 
+    client_secret: str, 
+    domain: str
+) -> dict:
+    """Refresh access token using refresh token."""
+    payload = {
+        "grant_type": "refresh_token",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": refresh_token,
+    }
+    resp = httpx.post(f"https://{domain}/oauth/token", json=payload, timeout=15)
+    resp.raise_for_status()
+    return resp.json()  # Contains fresh access_token and possibly new refresh_token

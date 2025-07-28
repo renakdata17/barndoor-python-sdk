@@ -5,13 +5,25 @@ from __future__ import annotations
 from typing import Any, List
 
 import httpx
+import logging
+import os
 
-from ._http import HTTPClient
-from .exceptions import ConnectionError, HTTPError
+from ._http import HTTPClient, TimeoutConfig
+from .exceptions import ConnectionError, HTTPError, ConfigurationError
 from .models import (
     ServerDetail,  # forward reference for type checking
     ServerSummary,
 )
+from .logging import get_logger
+from .validation import (
+    validate_url,
+    validate_token,
+    validate_server_id,
+    validate_timeout,
+    validate_optional_string,
+)
+
+logger = get_logger("client")
 
 
 class BarndoorSDK:
@@ -45,23 +57,62 @@ class BarndoorSDK:
         api_base_url: str,
         barndoor_token: str | None = None,
         validate_token_on_init: bool = True,
+        timeout: float = 30.0,
+        max_retries: int = 3,
     ):
         from .auth_store import load_user_token
+        from ._http import HTTPClient, TimeoutConfig
 
-        self.base = api_base_url.rstrip("/")
-        self.token = barndoor_token or load_user_token()
-        if not self.token:
+        # Validate inputs
+        self.base = validate_url(api_base_url, "API base URL").rstrip("/")
+        
+        token = barndoor_token or load_user_token()
+        if not token:
             raise ValueError(
-                "Barndoor user token not provided and none found in store. Run `barndoor-login`. "
+                "Barndoor user token not provided and none found in store. Run `barndoor-login`."
             )
-        self._http = HTTPClient()
-        self._token_validated = False
+        self.token = validate_token(token)
+        
+        timeout = validate_timeout(timeout, "Timeout")
+        if not isinstance(max_retries, int) or max_retries < 0:
+            raise ConfigurationError("max_retries must be a non-negative integer")
 
-        # Optionally validate token on initialization
-        if validate_token_on_init:
-            # Note: This is async but we can't await in __init__
-            # The validation will happen on first API call if needed
-            pass
+        timeout_config = TimeoutConfig(read=timeout, connect=timeout/3)
+        self._http = HTTPClient(timeout_config=timeout_config, max_retries=max_retries)
+        self._token_validated = False
+        self._closed = False
+
+        logger.info(f"Initialized BarndoorSDK for {self.base}")
+
+    async def __aenter__(self) -> "BarndoorSDK":
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Async context manager exit with cleanup."""
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """Close the SDK and clean up resources."""
+        if not self._closed:
+            await self._http.close()
+            self._closed = True
+
+    def _ensure_not_closed(self) -> None:
+        """Ensure the SDK hasn't been closed."""
+        if self._closed:
+            raise RuntimeError("SDK has been closed. Create a new instance or use as context manager.")
+
+    async def _req(self, method: str, path: str, **kwargs) -> dict:
+        """Make authenticated request with automatic token validation."""
+        self._ensure_not_closed()
+        await self.ensure_valid_token()
+        
+        headers = kwargs.setdefault("headers", {})
+        headers["Authorization"] = f"Bearer {self.token}"
+        
+        url = f"{self.base}{path}"
+        return await self._http.request(method, url, **kwargs)
 
     # ---------------- Token validation -----------------
 
@@ -91,155 +142,91 @@ class BarndoorSDK:
         return result["valid"]
 
     async def ensure_valid_token(self) -> None:
-        """Ensure the token is valid, validating if necessary.
-
-        This method is called before each API request to ensure
-        the token hasn't been revoked or expired.
-        """
-        import os
-        if os.getenv("BARNDOOR_ENV", "prod").lower() == "local":
-            # will be handled by generic non-prod branch below
-            pass
-
-        # Skip validation for all non-production environments where the
-        # /identity/token endpoint might be unreachable (dev, local, staging…)
-        if os.getenv("BARNDOOR_ENV", "prod").lower() != "prod":
+        """Ensure token is valid, validating if necessary."""
+        if self._token_validated:
+            return
+            
+        # Skip validation in non-production environments
+        env = os.getenv("BARNDOOR_ENV", "localdev").lower()
+        if env in ("localdev", "local", "development", "dev"):
             self._token_validated = True
             return
             
-        if not self._token_validated:
-            is_valid = await self.validate_cached_token()
-            if not is_valid:
-                raise ValueError("Token validation failed")
-            self._token_validated = True
+        # Validate token in production
+        is_valid = await self.validate_cached_token()
+        if not is_valid:
+            raise ValueError("Token validation failed. Please re-authenticate.")
+        
+        self._token_validated = True
 
     # ---------------- Registry -----------------
 
     async def list_servers(self) -> List[ServerSummary]:
-        """List all MCP servers available to the caller's organization.
-
-        Retrieves a list of servers that the authenticated user has
-        access to, including their connection status.
-
-        Returns
-        -------
-        List[ServerSummary]
-            List of server summaries containing id, name, slug, provider,
-            and connection_status for each server
-
-        Raises
-        ------
-        HTTPError
-            If the API request fails
-        ConnectionError
-            If unable to connect to the API
-        """
+        """List all MCP servers available to the caller's organization."""
         await self.ensure_valid_token()
-        resp = await self._req("GET", f"{self.base}/servers")
-        return [ServerSummary.model_validate(o) for o in resp.json()]
+        logger.debug("Fetching server list")
+        try:
+            resp = await self._req("GET", f"{self.base}/servers")
+            servers = [ServerSummary.model_validate(o) for o in resp]  # Remove .json()
+            logger.info(f"Retrieved {len(servers)} servers")
+            return servers
+        except Exception as e:
+            logger.error(f"Failed to list servers: {e}")
+            raise
 
     # ----------- user onboarding helpers -------------
 
     async def initiate_connection(
-        self, server_id: str, return_url: str | None = None
+        self, 
+        server_id: str, 
+        return_url: str | None = None
     ) -> dict[str, str]:
-        """Initiate OAuth connection flow for a server.
+        """Initiate OAuth connection flow for a server."""
+        server_id = validate_server_id(server_id)
+        return_url = validate_optional_string(return_url, "Return URL", max_length=2048)
+        
+        if return_url:
+            return_url = validate_url(return_url, "Return URL")
 
-        Starts the OAuth authorization process for connecting to a
-        third-party server. Returns the authorization URL that the
-        user should visit to complete the connection.
-
-        Parameters
-        ----------
-        server_id : str
-            UUID of the server to connect to
-        return_url : str, optional
-            URL to redirect to after OAuth completion. If not provided,
-            uses the default configured for the application
-
-        Returns
-        -------
-        dict[str, str]
-            Dictionary containing:
-            - connection_id: UUID of the connection request
-            - auth_url: Authorization URL for the user to visit
-            - state: OAuth state parameter for security
-
-        Raises
-        ------
-        RuntimeError
-            If the server is missing OAuth configuration
-        HTTPError
-            If the API request fails
-        """
-        await self.ensure_valid_token()
+        logger.info(f"Initiating connection for server {server_id}")
+        
         params = {"return_url": return_url} if return_url else None
         try:
-            resp = await self._req(
+            response = await self._req(
                 "POST",
-                f"{self.base}/servers/{server_id}/connect",
+                f"/servers/{server_id}/connect",
                 params=params,
                 json={},
             )
-            return resp.json()
+            return response
         except HTTPError as exc:
-            # Provide a clearer error when the Registry does not have OAuth
-            # configuration for this server yet.
             if (
                 exc.status_code == 500
-                and "OAuth server configuration not found" in exc.body
+                and "OAuth server configuration not found" in str(exc)
             ):
                 raise RuntimeError(
-                    "Server is missing OAuth configuration (client_id / client_secret). "
+                    "Server is missing OAuth configuration. "
                     "Ask an admin to configure credentials before initiating a connection."
                 ) from exc
             raise
 
     async def get_connection_status(self, server_id: str) -> str:
-        """Get the user's connection status for a specific server.
-
-        Parameters
-        ----------
-        server_id : str
-            UUID of the server to check
-
-        Returns
-        -------
-        str
-            Connection status: "available", "pending", or "connected"
-
-        Raises
-        ------
-        HTTPError
-            If the API request fails or server not found
-        """
-        await self.ensure_valid_token()
-        resp = await self._req("GET", f"{self.base}/servers/{server_id}/connection")
-        return resp.json()["status"]
+        """Get the user's connection status for a specific server."""
+        server_id = validate_server_id(server_id)
+        
+        logger.debug(f"Checking connection status for server {server_id}")
+        response = await self._req("GET", f"/servers/{server_id}/connection")
+        return response["status"]
 
     async def get_server(self, server_id: str) -> "ServerDetail":
-        """Get detailed information about a specific server.
-
-        Parameters
-        ----------
-        server_id : str
-            UUID of the server
-
-        Returns
-        -------
-        ServerDetail
-            Detailed server information including OAuth configuration
-
-        Raises
-        ------
-        HTTPError
-            If the API request fails or server not found
-        """
-        await self.ensure_valid_token()
-        resp = await self._req("GET", f"{self.base}/servers/{server_id}")
-        from .models import ServerDetail  # local import to avoid circular
-
-        return ServerDetail.model_validate(resp.json())
+        """Get detailed information about a specific server."""
+        server_id = validate_server_id(server_id)
+        
+        logger.debug(f"Fetching server details for {server_id}")
+        response = await self._req("GET", f"/servers/{server_id}")
+        
+        from .models import ServerDetail
+        return ServerDetail.model_validate(response)
 
     # ---------------- internal -----------------
 
@@ -305,7 +292,7 @@ class BarndoorSDK:
         client_secret: str,
         audience: str,
         *,
-        api_base_url: str = "http://localhost:8003",
+        api_base_url: str = "https://{organization_id}.mcp.barndoor.ai",
         port: int = 52765,
     ) -> "BarndoorSDK":
         """Perform interactive login and return an initialized SDK instance.
@@ -325,7 +312,7 @@ class BarndoorSDK:
         audience : str
             API audience identifier
         api_base_url : str, optional
-            Base URL of the Barndoor API. Default is "http://localhost:8003"
+            Base URL of the Barndoor API. Default is "https://{organization_id}.mcp.barndoor.ai"
         port : int, optional
             Local port for OAuth callback. Default is 8765
 
@@ -418,8 +405,6 @@ class BarndoorSDK:
         import asyncio
         import webbrowser
 
-        from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
-
         # 1. locate server
         servers = await self.list_servers()
         target = next(
@@ -443,23 +428,6 @@ class BarndoorSDK:
         auth_url = conn.get("auth_url")
         if not auth_url:
             raise RuntimeError("Registry did not return auth_url")
-
-        # Rewrite redirect_uri for CLI usage (localhost backend callback)
-        parsed = urlparse(auth_url)
-        params = parse_qs(parsed.query)  # type: ignore[arg-type]
-        if params.get("redirect_uri", [""])[0] == "http://localhost:3000/callback":
-            params["redirect_uri"] = ["http://localhost:8003/callback"]  # type: ignore[index]
-            new_query = urlencode(params, doseq=True)
-            auth_url = urlunparse(
-                (
-                    parsed.scheme,
-                    parsed.netloc,
-                    parsed.path,
-                    parsed.params,
-                    new_query,
-                    parsed.fragment,
-                )  # type: ignore[arg-type]
-            )
 
         webbrowser.open(auth_url)
 

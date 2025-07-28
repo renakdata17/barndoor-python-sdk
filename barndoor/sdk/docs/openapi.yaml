@@ -1,0 +1,114 @@
+openapi: 3.1.0
+info:
+  title: Barndoor Platform API
+  version: 0.0.1
+  description: |
+    Minimal contract covering the publicly-exposed endpoints currently used by
+    the Python SDK. Expand as new endpoints become stable.
+servers:
+  - url: https://{organization_id}.mcp.barndoor.ai
+    description: Production
+paths:
+  /servers:
+    get:
+      summary: List MCP servers accessible to the caller
+      operationId: listServers
+      responses:
+        "200":
+          description: List of servers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServerSummary"
+  /servers/{server_id}:
+    parameters:
+      - name: server_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Get server details
+      operationId: getServer
+      responses:
+        "200":
+          description: Server detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServerDetail"
+  /servers/{server_id}/connect:
+    parameters:
+      - name: server_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: Initiate OAuth connection for a server
+      operationId: initiateConnection
+      responses:
+        "200":
+          description: Authorization URL and state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionInitiateResponse"
+  /servers/{server_id}/connection:
+    parameters:
+      - name: server_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Retrieve connection status for this server
+      operationId: getConnectionStatus
+      responses:
+        "200":
+          description: Connection status record
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [available, pending, connected]
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ServerSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        provider: { type: string, nullable: true }
+        connection_status:
+          { type: string, enum: [available, pending, connected] }
+      required: [id, name, slug, connection_status]
+    ServerDetail:
+      allOf:
+        - $ref: "#/components/schemas/ServerSummary"
+        - type: object
+          properties:
+            url: { type: string, nullable: true }
+    ConnectionInitiateResponse:
+      type: object
+      properties:
+        connection_id: { type: string, format: uuid }
+        auth_url: { type: string, format: uri }
+        state: { type: string }
+      required: [connection_id, auth_url, state]
+security:
+  - bearerAuth: []
