@@ -76,11 +76,15 @@ class BarndoorConfig(BaseModel):
             try:
                 claims = jwt.get_unverified_claims(token)
                 
-                # Look for organization name in user claims first, then fallback to org_id
+                # Look for organization name in user claims first, then at top level, then fallback to org_id
                 org_name = None
                 if user_claims := claims.get("user"):
                     org_name = user_claims.get("organization_name")
-                
+
+                # If not found in user claims, check top level
+                if not org_name:
+                    org_name = claims.get("organization_name")
+
                 if org_name:
                     config_data["organization_id"] = org_name
                     # Resolve URL templates
