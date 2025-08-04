@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, List
+from typing import List
 
-import httpx
 import logging
 import os
 
 from ._http import HTTPClient, TimeoutConfig
-from .exceptions import ConnectionError, HTTPError, ConfigurationError
+from .exceptions import HTTPError, ConfigurationError
 from .models import (
     ServerDetail,  # forward reference for type checking
     ServerSummary,
@@ -166,8 +165,15 @@ class BarndoorSDK:
         await self.ensure_valid_token()
         logger.debug("Fetching server list")
         try:
-            resp = await self._req("GET", f"{self.base}/servers")
-            servers = [ServerSummary.model_validate(o) for o in resp]  # Remove .json()
+            resp = await self._req("GET", "/servers")
+
+            # Handle different response formats
+            if isinstance(resp, dict) and 'data' in resp:
+                server_data = resp['data']
+            else:
+                server_data = resp
+
+            servers = [ServerSummary.model_validate(o) for o in server_data]
             logger.info(f"Retrieved {len(servers)} servers")
             return servers
         except Exception as e:
@@ -229,49 +235,6 @@ class BarndoorSDK:
         return ServerDetail.model_validate(response)
 
     # ---------------- internal -----------------
-
-    async def _req(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        """Make an authenticated HTTP request.
-
-        Internal method that adds authentication headers and handles
-        common error cases.
-
-        Parameters
-        ----------
-        method : str
-            HTTP method (GET, POST, etc.)
-        url : str
-            Full URL to request
-        **kwargs
-            Additional arguments passed to httpx.request()
-
-        Returns
-        -------
-        httpx.Response
-            The HTTP response
-
-        Raises
-        ------
-        HTTPError
-            For HTTP error status codes
-        ConnectionError
-            For connection failures
-        RuntimeError
-            For other request failures
-        """
-        headers = kwargs.pop("headers", {})
-        headers["Authorization"] = f"Bearer {self.token}"
-        # No agent-specific header
-        try:
-            return await self._http.request(method, url, headers=headers, **kwargs)
-        except httpx.HTTPStatusError as exc:  # pragma: no cover
-            raise HTTPError(exc.response.status_code, exc.response.text) from exc
-        except ConnectionError as exc:
-            # Re-raise ConnectionError with additional context
-            raise ConnectionError(url=url, original_error=exc) from exc
-        except RuntimeError as exc:
-            # Re-raise RuntimeError from HTTPClient with additional context
-            raise RuntimeError(f"API request failed ({method} {url}): {exc}") from exc
 
     async def aclose(self) -> None:
         """Close the underlying HTTP client.
