@@ -23,11 +23,8 @@ from __future__ import annotations
 
 # Standard library
 import asyncio
-import os
 import logging
 
-from pathlib import Path
-from typing import List, Tuple
 from uuid import uuid4
 
 # Import required auth helpers explicitly so type checkers can resolve them
@@ -38,8 +35,6 @@ from barndoor.sdk.auth import (
 )
 
 from .auth_store import (
-    clear_cached_token,
-    is_token_active,
     load_user_token,
     save_user_token,
 )
@@ -52,7 +47,6 @@ load_dotenv_for_sdk()
 
 # Internal imports -----------------------------------------------------------
 from .client import BarndoorSDK
-from .utils import external_mcp_url
 from .logging import get_logger
 
 logger = get_logger("quickstart")
@@ -110,7 +104,7 @@ async def login_interactive(
         import webbrowser
         webbrowser.open(auth_url)
         logging.getLogger(__name__).info("Please complete login in your browser…")
-        code, _state = await waiter
+        code, _ = await waiter
         token_data = exchange_code_for_token_backend(
             domain=auth_domain,
             client_id=client_id,
@@ -167,7 +161,6 @@ async def make_mcp_connection_params(
     sdk: BarndoorSDK,
     server_slug: str,
     *,
-    proxy_base_url: str = "http://proxy-ingress:8080",
     transport: str = "streamable-http",
 ):
     """Return ``(params_dict, public_url)`` where *params_dict* has the keys
@@ -180,27 +173,21 @@ async def make_mcp_connection_params(
         otherwise ("dev" or "local") → route through the local proxy.
       • Inject JWT + session-id headers
     """
-    # 1. ensure server exists
+    # 1. find the server and use proxy_url provided by registry
     servers = await sdk.list_servers()
-    if server_slug not in {s.slug for s in servers}:
+    server = next((s for s in servers if s.slug == server_slug), None)
+    if not server:
         raise ValueError(f"Server '{server_slug}' not found for current user")
 
-    # 2. decide proxy vs public based on env (default taken from MODE / BARNDOOR_ENV)
-    env = (os.getenv("BARNDOOR_ENV") or os.getenv("MODE", "localdev")).lower()
+    # Always prefer registry-provided proxy_url; fall back to detailed proxy_url
+    url = getattr(server, "proxy_url", None)
+    if not url:
+        details = await sdk.get_server(server.id)
+        url = getattr(details, "proxy_url", None)
 
-    # Build dynamic configuration (slug already substituted)
-    from barndoor.sdk.config import get_dynamic_config
-
-    cfg_dyn = get_dynamic_config(str(sdk.token))
-
-    if env in {"localdev", "local", "development", "dev"}:
-        # Use org-aware MCP host from config
-        url = f"{cfg_dyn.mcp_base_url}/mcp/{server_slug}"
-    else:  # production (or any other value)
-        url = external_mcp_url(
-            server_slug=server_slug,
-            jwt_token=str(sdk.token),
-            env="prod",
+    if not url:
+        raise RuntimeError(
+            "Registry did not provide a proxy_url for this server. Ensure backend is updated."
         )
 
     params = {

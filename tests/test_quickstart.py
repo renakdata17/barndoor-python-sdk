@@ -99,35 +99,30 @@ class TestMakeMCPConnectionParams:
     """Test make_mcp_connection_params helper."""
 
     @pytest.mark.asyncio
-    async def test_make_connection_params_dev(self, sdk_with_mocked_http, mock_server_list):
-        """Test connection params in development mode."""
+    async def test_make_connection_params_uses_proxy_url(self, sdk_with_mocked_http):
+        """make_mcp_connection_params should use proxy_url provided by registry."""
+        mock_server_list = [
+            {
+                "id": "server-1",
+                "name": "Salesforce",
+                "slug": "salesforce",
+                "provider": "salesforce",
+                "connection_status": "connected",
+                "proxy_url": "https://acme.mcp.barndoor.ai/mcp/salesforce",
+            }
+        ]
+
         sdk_with_mocked_http._http.request = AsyncMock(return_value=mock_server_list)
-        
-        with patch.dict("os.environ", {"MODE": "development"}):
-            params, public_url = await make_mcp_connection_params(
-                sdk_with_mocked_http, 
-                "salesforce"
-            )
-        
-        assert "url" in params
-        assert "headers" in params
+
+        params, public_url = await make_mcp_connection_params(
+            sdk_with_mocked_http,
+            "salesforce"
+        )
+
+        assert params["url"] == "https://acme.mcp.barndoor.ai/mcp/salesforce"
+        assert public_url == params["url"]
         assert "Authorization" in params["headers"]
         assert params["transport"] == "streamable-http"
-
-    @pytest.mark.asyncio
-    async def test_make_connection_params_prod(self, sdk_with_mocked_http, mock_server_list):
-        """Test connection params in production mode."""
-        sdk_with_mocked_http._http.request = AsyncMock(return_value=mock_server_list)
-        
-        with patch.dict("os.environ", {"MODE": "production"}):
-            params, public_url = await make_mcp_connection_params(
-                sdk_with_mocked_http,
-                "salesforce"
-            )
-        
-        assert "url" in params
-        assert public_url is not None
-        assert "mcp.barndoor.ai" in params["url"]
 
     @pytest.mark.asyncio
     async def test_make_connection_params_server_not_found(self, sdk_with_mocked_http):
