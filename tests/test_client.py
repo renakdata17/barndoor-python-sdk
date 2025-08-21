@@ -24,14 +24,14 @@ class TestBarndoorSDK:
         ]
         
         with patch.object(sdk_client, '_req', new_callable=AsyncMock) as mock_req:
-            mock_req.return_value.json.return_value = mock_response
-            
+            mock_req.return_value = mock_response
+
             servers = await sdk_client.list_servers()
-            
+
             assert len(servers) == 1
             assert isinstance(servers[0], ServerSummary)
             assert servers[0].slug == "test-server"
-            mock_req.assert_called_once_with("GET", f"{sdk_client.base}/servers")
+            mock_req.assert_called_once_with("GET", "/servers")
 
     @pytest.mark.asyncio
     async def test_list_servers_http_error(self, sdk_client):

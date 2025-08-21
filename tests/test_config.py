@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import patch
-from barndoor.sdk.config import AppConfig, get_static_config, _build_static_config
+from barndoor.sdk.config import BarndoorConfig as AppConfig, get_static_config
 
 
 class TestConfiguration:
@@ -21,25 +21,25 @@ class TestConfiguration:
             'AUTH_DOMAIN': 'custom.auth.domain',
             'AGENT_CLIENT_ID': 'test-client-id',
             'AGENT_CLIENT_SECRET': 'test-secret',
-            'BARNDOOR_ENV': 'development'
+            'MODE': 'production'
         }
-        
+
         with patch.dict('os.environ', env_vars):
-            config = _build_static_config()
-            
-            assert config.AUTH_DOMAIN == 'custom.auth.domain'
-            assert config.AGENT_CLIENT_ID == 'test-client-id'
-            assert config.AGENT_CLIENT_SECRET == 'test-secret'
+            config = get_static_config()
+
+            assert config.auth_domain == 'custom.auth.domain'
+            assert config.client_id == 'test-client-id'
+            assert config.client_secret == 'test-secret'
 
     def test_config_mode_detection(self):
         """Test different mode configurations."""
         with patch.dict('os.environ', {'MODE': 'localdev'}):
-            config = _build_static_config()
-            # Should use localdev defaults
-            
+            config = get_static_config()
+            assert config.environment in {"localdev", "local"}
+
         with patch.dict('os.environ', {'BARNDOOR_ENV': 'production'}):
-            config = _build_static_config()
-            # Should use production defaults
+            config = get_static_config()
+            assert config.environment in {"production", "prod"}
 
     def test_config_immutability(self):
         """Test that config is immutable."""

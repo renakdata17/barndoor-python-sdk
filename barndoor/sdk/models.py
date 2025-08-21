@@ -35,6 +35,7 @@ class ServerSummary(BaseModel):
     slug: str
     provider: Optional[str] = None
     connection_status: str
+    proxy_url: Optional[str] = None
 
 
 class ServerDetail(ServerSummary):

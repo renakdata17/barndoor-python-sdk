@@ -39,3 +39,47 @@ def mock_httpx_client():
     mock.request = AsyncMock()
     mock.aclose = AsyncMock()
     return mock
+
+
+@pytest.fixture
+def sdk_with_mocked_http(mock_token):
+    """SDK client ready for tests that patch the internal HTTP request."""
+    return BarndoorSDK(
+        api_base_url="https://api.test.com",
+        barndoor_token=mock_token,
+        validate_token_on_init=False,
+    )
+
+
+
+@pytest.fixture
+def temp_token_dir(monkeypatch, tmp_path):
+    """Temporary token storage path made available to auth_store."""
+    token_file = tmp_path / "token.json"
+    # Patch TOKEN_FILE used by auth_store to point into tmp path
+    monkeypatch.setenv("BARNDOOR_TOKEN_FILE", str(token_file))
+    # Some auth_store implementations read a module-level TOKEN_FILE; if needed we could patch it here
+    return tmp_path
+
+
+@pytest.fixture
+def mock_server_list():
+    """Sample server list payload as returned by the API for list_servers."""
+    return [
+        {
+            "id": "srv-salesforce",
+            "name": "Salesforce",
+            "slug": "salesforce",
+            "provider": "salesforce",
+            "connection_status": "connected",
+            "proxy_url": "https://acme.mcp.barndoor.ai/mcp/salesforce",
+        },
+        {
+            "id": "srv-notion",
+            "name": "Notion",
+            "slug": "notion",
+            "provider": "notion",
+            "connection_status": "available",
+            "proxy_url": "https://acme.mcp.barndoor.ai/mcp/notion",
+        },
+    ]
