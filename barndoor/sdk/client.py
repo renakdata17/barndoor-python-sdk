@@ -163,19 +163,23 @@ class BarndoorSDK:
     async def list_servers(self) -> List[ServerSummary]:
         """List all MCP servers available to the caller's organization.
 
-        Automatically paginates across all pages when the registry returns
-        a paginated response with metadata fields such as:
-          - page, pages, next_page (preferred)
-        Also supports legacy, single-page responses where the endpoint returns
-        a plain list or a dict without pagination metadata.
+        Uses cursor-less page-based pagination as provided by the registry API.
+        Expects a response shape:
+          {
+            "data": [...],
+            "page": number,
+            "limit": number,
+            "total": number,
+            "pages": number,
+            "previous_page": number | null,
+            "next_page": number | null
+          }
         """
         await self.ensure_valid_token()
         logger.debug("Fetching server list")
         try:
             servers: List[ServerSummary] = []
 
-            # Simple, safe defaults; allow override via env if needed
-            import os
             page = 1
             try:
                 limit = int(os.getenv("BARNDOOR_PAGE_SIZE", "100"))
@@ -188,54 +192,20 @@ class BarndoorSDK:
                 params = {"page": page, "limit": limit}
                 resp = await self._req("GET", "/servers", params=params)
 
-                # Normalize data section
-                if isinstance(resp, dict) and 'data' in resp:
-                    server_data = resp['data']
-                else:
-                    server_data = resp
-
-                # Validate and extend
+                # Strictly require the new paginated shape
+                server_data = resp["data"]
                 servers.extend(ServerSummary.model_validate(o) for o in server_data)
+
                 pages_visited += 1
+                next_page = resp.get("next_page")
 
-                # Try to determine next page from various metadata shapes
-                next_page = None
-                if isinstance(resp, dict):
-                    meta_candidates = [
-                        resp if any(k in resp for k in ("next_page", "page", "pages")) else {},
-                        resp.get("meta") or {},
-                        resp.get("pagination") or {},
-                        resp.get("metadata") or {},
-                    ]
-                    # Preferred: explicit next_page
-                    for meta in meta_candidates:
-                        if isinstance(meta, dict) and "next_page" in meta:
-                            next_page = meta.get("next_page")
-                            break
-                    # Fallback: compute from page/pages
-                    if next_page is None:
-                        for meta in meta_candidates:
-                            if isinstance(meta, dict) and ("page" in meta and "pages" in meta):
-                                try:
-                                    curr = int(meta.get("page") or page)
-                                    total_pages = int(meta.get("pages") or 1)
-                                    next_page = curr + 1 if curr < total_pages else None
-                                except Exception:
-                                    next_page = None
-                                break
-
-                # Stop if not paginated (legacy) or no next page
-                if not isinstance(resp, dict) or not next_page:
+                if not next_page:
                     break
-
                 if pages_visited >= max_pages:
                     logger.warning("Reached max pagination depth (%s), stopping.", max_pages)
                     break
 
-                try:
-                    page = int(next_page)
-                except Exception:
-                    break
+                page = int(next_page)
 
             logger.info(f"Retrieved {len(servers)} servers")
             return servers

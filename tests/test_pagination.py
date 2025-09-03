@@ -8,11 +8,19 @@ from barndoor.sdk.client import BarndoorSDK
 async def test_list_servers_single_page(monkeypatch):
     sdk = BarndoorSDK(api_base_url="https://api.test.com", barndoor_token="aaa.bbb.ccc", validate_token_on_init=False)
 
-    # Mock response: legacy list
-    data = [
-        {"id": "1", "name": "A", "slug": "a", "connection_status": "connected"},
-        {"id": "2", "name": "B", "slug": "b", "connection_status": "available"},
-    ]
+    # Mock response: new paginated shape with single page
+    data = {
+        "data": [
+            {"id": "1", "name": "A", "slug": "a", "connection_status": "connected"},
+            {"id": "2", "name": "B", "slug": "b", "connection_status": "available"},
+        ],
+        "page": 1,
+        "limit": 100,
+        "total": 2,
+        "pages": 1,
+        "previous_page": None,
+        "next_page": None,
+    }
     sdk._http.request = AsyncMock(return_value=data)
 
     servers = await sdk.list_servers()
