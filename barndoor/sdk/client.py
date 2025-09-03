@@ -161,19 +161,52 @@ class BarndoorSDK:
     # ---------------- Registry -----------------
 
     async def list_servers(self) -> List[ServerSummary]:
-        """List all MCP servers available to the caller's organization."""
+        """List all MCP servers available to the caller's organization.
+
+        Uses cursor-less page-based pagination as provided by the registry API.
+        Expects a response shape:
+          {
+            "data": [...],
+            "page": number,
+            "limit": number,
+            "total": number,
+            "pages": number,
+            "previous_page": number | null,
+            "next_page": number | null
+          }
+        """
         await self.ensure_valid_token()
         logger.debug("Fetching server list")
         try:
-            resp = await self._req("GET", "/servers")
+            servers: List[ServerSummary] = []
 
-            # Handle different response formats
-            if isinstance(resp, dict) and 'data' in resp:
-                server_data = resp['data']
-            else:
-                server_data = resp
+            page = 1
+            try:
+                limit = int(os.getenv("BARNDOOR_PAGE_SIZE", "100"))
+            except Exception:
+                limit = 100
+            max_pages = 100  # guard against infinite loops
 
-            servers = [ServerSummary.model_validate(o) for o in server_data]
+            pages_visited = 0
+            while True:
+                params = {"page": page, "limit": limit}
+                resp = await self._req("GET", "/servers", params=params)
+
+                # Strictly require the new paginated shape
+                server_data = resp["data"]
+                servers.extend(ServerSummary.model_validate(o) for o in server_data)
+
+                pages_visited += 1
+                next_page = resp.get("next_page")
+
+                if not next_page:
+                    break
+                if pages_visited >= max_pages:
+                    logger.warning("Reached max pagination depth (%s), stopping.", max_pages)
+                    break
+
+                page = int(next_page)
+
             logger.info(f"Retrieved {len(servers)} servers")
             return servers
         except Exception as e:
