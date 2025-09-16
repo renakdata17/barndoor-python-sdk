@@ -2,24 +2,21 @@
 
 from __future__ import annotations
 
-from typing import List
-
-import logging
 import os
 
 from ._http import HTTPClient, TimeoutConfig
-from .exceptions import HTTPError, ConfigurationError
+from .exceptions import ConfigurationError, HTTPError
+from .logging import get_logger
 from .models import (
     ServerDetail,  # forward reference for type checking
     ServerSummary,
 )
-from .logging import get_logger
 from .validation import (
-    validate_url,
-    validate_token,
+    validate_optional_string,
     validate_server_id,
     validate_timeout,
-    validate_optional_string,
+    validate_token,
+    validate_url,
 )
 
 logger = get_logger("client")
@@ -60,30 +57,29 @@ class BarndoorSDK:
         max_retries: int = 3,
     ):
         from .auth_store import load_user_token
-        from ._http import HTTPClient, TimeoutConfig
 
         # Validate inputs
         self.base = validate_url(api_base_url, "API base URL").rstrip("/")
-        
+
         token = barndoor_token or load_user_token()
         if not token:
             raise ValueError(
                 "Barndoor user token not provided and none found in store. Run `barndoor-login`."
             )
         self.token = validate_token(token)
-        
+
         timeout = validate_timeout(timeout, "Timeout")
         if not isinstance(max_retries, int) or max_retries < 0:
             raise ConfigurationError("max_retries must be a non-negative integer")
 
-        timeout_config = TimeoutConfig(read=timeout, connect=timeout/3)
+        timeout_config = TimeoutConfig(read=timeout, connect=timeout / 3)
         self._http = HTTPClient(timeout_config=timeout_config, max_retries=max_retries)
         self._token_validated = False
         self._closed = False
 
         logger.info(f"Initialized BarndoorSDK for {self.base}")
 
-    async def __aenter__(self) -> "BarndoorSDK":
+    async def __aenter__(self) -> BarndoorSDK:
         """Async context manager entry."""
         return self
 
@@ -100,16 +96,18 @@ class BarndoorSDK:
     def _ensure_not_closed(self) -> None:
         """Ensure the SDK hasn't been closed."""
         if self._closed:
-            raise RuntimeError("SDK has been closed. Create a new instance or use as context manager.")
+            raise RuntimeError(
+                "SDK has been closed. Create a new instance or use as context manager."
+            )
 
     async def _req(self, method: str, path: str, **kwargs) -> dict:
         """Make authenticated request with automatic token validation."""
         self._ensure_not_closed()
         await self.ensure_valid_token()
-        
+
         headers = kwargs.setdefault("headers", {})
         headers["Authorization"] = f"Bearer {self.token}"
-        
+
         url = f"{self.base}{path}"
         return await self._http.request(method, url, **kwargs)
 
@@ -144,23 +142,23 @@ class BarndoorSDK:
         """Ensure token is valid, validating if necessary."""
         if self._token_validated:
             return
-            
+
         # Skip validation in non-production environments
         env = os.getenv("BARNDOOR_ENV", "localdev").lower()
         if env in ("localdev", "local", "development", "dev"):
             self._token_validated = True
             return
-            
+
         # Validate token in production
         is_valid = await self.validate_cached_token()
         if not is_valid:
             raise ValueError("Token validation failed. Please re-authenticate.")
-        
+
         self._token_validated = True
 
     # ---------------- Registry -----------------
 
-    async def list_servers(self) -> List[ServerSummary]:
+    async def list_servers(self) -> list[ServerSummary]:
         """List all MCP servers available to the caller's organization.
 
         Uses cursor-less page-based pagination as provided by the registry API.
@@ -178,7 +176,7 @@ class BarndoorSDK:
         await self.ensure_valid_token()
         logger.debug("Fetching server list")
         try:
-            servers: List[ServerSummary] = []
+            servers: list[ServerSummary] = []
 
             page = 1
             try:
@@ -216,19 +214,17 @@ class BarndoorSDK:
     # ----------- user onboarding helpers -------------
 
     async def initiate_connection(
-        self, 
-        server_id: str, 
-        return_url: str | None = None
+        self, server_id: str, return_url: str | None = None
     ) -> dict[str, str]:
         """Initiate OAuth connection flow for a server."""
         server_id = validate_server_id(server_id)
         return_url = validate_optional_string(return_url, "Return URL", max_length=2048)
-        
+
         if return_url:
             return_url = validate_url(return_url, "Return URL")
 
         logger.info(f"Initiating connection for server {server_id}")
-        
+
         params = {"return_url": return_url} if return_url else None
         try:
             response = await self._req(
@@ -239,10 +235,7 @@ class BarndoorSDK:
             )
             return response
         except HTTPError as exc:
-            if (
-                exc.status_code == 500
-                and "OAuth server configuration not found" in str(exc)
-            ):
+            if exc.status_code == 500 and "OAuth server configuration not found" in str(exc):
                 raise RuntimeError(
                     "Server is missing OAuth configuration. "
                     "Ask an admin to configure credentials before initiating a connection."
@@ -252,31 +245,21 @@ class BarndoorSDK:
     async def get_connection_status(self, server_id: str) -> str:
         """Get the user's connection status for a specific server."""
         server_id = validate_server_id(server_id)
-        
+
         logger.debug(f"Checking connection status for server {server_id}")
         response = await self._req("GET", f"/servers/{server_id}/connection")
         return response["status"]
 
-    async def get_server(self, server_id: str) -> "ServerDetail":
+    async def get_server(self, server_id: str) -> ServerDetail:
         """Get detailed information about a specific server."""
         server_id = validate_server_id(server_id)
-        
+
         logger.debug(f"Fetching server details for {server_id}")
         response = await self._req("GET", f"/servers/{server_id}")
-        
+
         from .models import ServerDetail
+
         return ServerDetail.model_validate(response)
-
-    # ---------------- internal -----------------
-
-    async def aclose(self) -> None:
-        """Close the underlying HTTP client.
-
-        Should be called when done with the SDK to properly clean up
-        connections. Can also be used as an async context manager to
-        handle this automatically.
-        """
-        await self._http.aclose()
 
     # ---------- Convenience helpers -----------------
 
@@ -290,7 +273,7 @@ class BarndoorSDK:
         *,
         api_base_url: str = "https://{organization_id}.mcp.barndoor.ai",
         port: int = 52765,
-    ) -> "BarndoorSDK":
+    ) -> BarndoorSDK:
         """Perform interactive login and return an initialized SDK instance.
 
         Opens the system browser for OAuth authentication, waits for the

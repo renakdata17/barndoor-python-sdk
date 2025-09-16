@@ -1,8 +1,11 @@
 """Test configuration management."""
 
-import pytest
 from unittest.mock import patch
-from barndoor.sdk.config import BarndoorConfig as AppConfig, get_static_config
+
+import pytest
+
+from barndoor.sdk.config import BarndoorConfig as AppConfig
+from barndoor.sdk.config import get_static_config
 
 
 class TestConfiguration:
@@ -18,32 +21,32 @@ class TestConfiguration:
     def test_config_from_environment(self):
         """Test configuration loading from environment variables."""
         env_vars = {
-            'AUTH_DOMAIN': 'custom.auth.domain',
-            'AGENT_CLIENT_ID': 'test-client-id',
-            'AGENT_CLIENT_SECRET': 'test-secret',
-            'MODE': 'production'
+            "AUTH_DOMAIN": "custom.auth.domain",
+            "AGENT_CLIENT_ID": "test-client-id",
+            "AGENT_CLIENT_SECRET": "test-secret",
+            "MODE": "production",
         }
 
-        with patch.dict('os.environ', env_vars):
+        with patch.dict("os.environ", env_vars):
             config = get_static_config()
 
-            assert config.auth_domain == 'custom.auth.domain'
-            assert config.client_id == 'test-client-id'
-            assert config.client_secret == 'test-secret'
+            assert config.auth_domain == "custom.auth.domain"
+            assert config.client_id == "test-client-id"
+            assert config.client_secret == "test-secret"
 
     def test_config_mode_detection(self):
         """Test different mode configurations."""
-        with patch.dict('os.environ', {'MODE': 'localdev'}):
+        with patch.dict("os.environ", {"MODE": "localdev"}):
             config = get_static_config()
             assert config.environment in {"localdev", "local"}
 
-        with patch.dict('os.environ', {'BARNDOOR_ENV': 'production'}):
+        with patch.dict("os.environ", {"BARNDOOR_ENV": "production"}):
             config = get_static_config()
             assert config.environment in {"production", "prod"}
 
     def test_config_immutability(self):
         """Test that config is immutable."""
         config = AppConfig()
-        
+
         with pytest.raises(Exception):  # Pydantic will raise validation error
             config.AUTH_DOMAIN = "modified"

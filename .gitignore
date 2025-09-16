@@ -38,7 +38,4 @@ internal_dev_env_setup.*
 
 # OS / misc
 .DS_Store
-Thumbs.db 
-
-# uv lockfile (regenerate locally)
-./uv.lock 
+Thumbs.db

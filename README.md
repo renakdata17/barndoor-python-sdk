@@ -30,9 +30,9 @@ This architecture provides secure, managed access to external services without h
 ## Installation
 
 ```bash
-pip install barndoor-sdk  # coming soon – for now use an editable install
+pip install barndoor  # coming soon – for now use an editable install
 # or, inside this repo
-pip install -e libs/barndoor[dev]
+pip install -e barndoor[dev]
 ```
 
 Python ≥ 3.10 is required.
@@ -50,6 +50,7 @@ brew install uv        # or follow the install script on Linux/Windows
 # 2) create an isolated virtual environment in the repo
 uv venv .venv
 source .venv/bin/activate
+uv sync --frozen --all-extras --dev --python 3.13
 
 # 3) install the SDK in editable mode plus the example extras
 uv pip install -e '.[examples]'
@@ -66,6 +67,15 @@ uv run python -m barndoor.sdk.cli_login
 
 # 7) kick off the Notion sample agent
 uv run python examples/sample_notion_agent.py
+```
+
+### Install pre-commit hooks
+
+Install the git hooks once and run them locally (CI runs the same hooks):
+
+```bash
+uv run pre-commit install
+uv run pre-commit run --all-files
 ```
 
 **Note:** The OAuth default callback uses port 52765. Make sure this is registered in your Barndoor Agent as:
@@ -176,7 +186,7 @@ print(params["headers"])     # {'Authorization': 'Bearer ey…', 'x-barndoor-ses
 The complete API specification is available in [`barndoor/sdk/docs/openapi.yaml`](./barndoor/sdk/docs/openapi.yaml). This covers all endpoints currently used by the SDK including:
 
 - Server listing and details
-- OAuth connection initiation  
+- OAuth connection initiation
 - Connection status checking
 
 The spec can be viewed with tools like [Swagger UI](https://swagger.io/tools/swagger-ui/) or [Redoc](https://redocly.github.io/redoc/).

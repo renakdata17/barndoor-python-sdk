@@ -4,19 +4,16 @@ This module provides a CLI tool for authenticating with the Barndoor
 platform and saving credentials for use by SDK applications.
 """
 
-import argparse
 import asyncio
-import os
+import logging
 import sys
 import webbrowser
-import logging
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 # Centralized static configuration
 from barndoor.sdk.config import get_static_config
-
-from typing import Optional
-from pathlib import Path
-from dotenv import load_dotenv
 
 from .auth import (
     build_authorization_url,
@@ -24,7 +21,6 @@ from .auth import (
     start_local_callback_server,
 )
 from .auth_store import clear_cached_token, is_token_active, save_user_token
-
 
 # ---------------------------------------------------------------------------
 # Helpers built on top of the *new* SDK primitives
@@ -69,7 +65,6 @@ async def interactive_login(
     RuntimeError
         If the authentication flow fails
     """
-    import webbrowser
 
     redirect_uri, waiter = start_local_callback_server(port=port)
 
@@ -80,8 +75,8 @@ async def interactive_login(
         audience=audience,
     )
 
-    print(f"\nOpening browser for authentication...")
-    print(f"If the browser doesn't open automatically, visit:")
+    print("\nOpening browser for authentication...")
+    print("If the browser doesn't open automatically, visit:")
     print(f"{auth_url}\n")
 
     webbrowser.open(auth_url)
@@ -150,7 +145,9 @@ async def main():
 
     if not client_id or not client_secret:
         logging.error(
-            "AGENT_CLIENT_ID and AGENT_CLIENT_SECRET must be set – create a .env file with those keys.")
+            "AGENT_CLIENT_ID and AGENT_CLIENT_SECRET must be set – "
+            "create a .env file with those keys."
+        )
         sys.exit(1)
 
     # Clear any existing invalid token

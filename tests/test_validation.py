@@ -1,16 +1,17 @@
 """Tests for input validation utilities."""
 
 import pytest
+
+from barndoor.sdk.exceptions import ConfigurationError
 from barndoor.sdk.validation import (
-    validate_url,
-    validate_token,
-    validate_server_id,
-    validate_port,
-    validate_timeout,
     validate_client_credentials,
     validate_optional_string,
+    validate_port,
+    validate_server_id,
+    validate_timeout,
+    validate_token,
+    validate_url,
 )
-from barndoor.sdk.exceptions import ConfigurationError
 
 
 class TestValidateUrl:

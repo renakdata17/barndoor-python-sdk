@@ -16,13 +16,12 @@ import base64
 import hashlib
 import secrets
 import threading
-
+from collections.abc import Awaitable
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any, Awaitable, Dict, Tuple
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import httpx
-
 
 __all__ = [
     "get_client_credentials_token",
@@ -162,7 +161,7 @@ def build_authorization_url(
 def start_local_callback_server(
     port: int = 0,
     path: str = "/cb",
-) -> Tuple[str, Awaitable[Tuple[str, str]]]:
+) -> tuple[str, Awaitable[tuple[str, str]]]:
     """Start a local HTTP server to capture the OAuth redirect.
 
     Creates a minimal HTTP server on localhost that listens for the OAuth
@@ -196,7 +195,7 @@ def start_local_callback_server(
     >>> code, state = await waiter
     """
     loop = asyncio.get_event_loop()
-    future: asyncio.Future[Tuple[str, str]] = loop.create_future()
+    future: asyncio.Future[tuple[str, str]] = loop.create_future()
 
     class _Handler(BaseHTTPRequestHandler):  # noqa: D401, N801
         def do_GET(self):  # noqa: N802 (HTTP handler)
@@ -223,7 +222,7 @@ def start_local_callback_server(
     threading.Thread(target=server.serve_forever, daemon=True).start()
     redirect_uri = f"http://127.0.0.1:{server.server_address[1]}{path}"
 
-    async def _waiter() -> Tuple[str, str]:
+    async def _waiter() -> tuple[str, str]:
         code, state = await future
         server.shutdown()
         return code, state
@@ -239,7 +238,7 @@ def exchange_code_for_token(
     client_secret: str | None = None,
 ) -> dict:  # Return full token response
     """Exchange an authorization code for tokens."""
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "grant_type": "authorization_code",
         "client_id": client_id,
         "code": code,
@@ -249,9 +248,7 @@ def exchange_code_for_token(
     if _code_verifier:
         payload["code_verifier"] = _code_verifier
     elif client_secret is None:
-        raise RuntimeError(
-            "PKCE verifier missing – call build_authorization_url() first"
-        )
+        raise RuntimeError("PKCE verifier missing – call build_authorization_url() first")
 
     if client_secret:
         payload["client_secret"] = client_secret
@@ -279,10 +276,7 @@ def exchange_code_for_token_backend(
 
 
 def refresh_access_token(
-    refresh_token: str, 
-    client_id: str, 
-    client_secret: str, 
-    domain: str
+    refresh_token: str, client_id: str, client_secret: str, domain: str
 ) -> dict:
     """Refresh access token using refresh token."""
     payload = {

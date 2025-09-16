@@ -30,11 +30,10 @@ from .client import BarndoorSDK
 from .exceptions import BarndoorError, ConnectionError, HTTPError
 from .models import AgentToken, ServerDetail, ServerSummary
 from .quickstart import (
-    login_interactive,
     ensure_server_connected,
+    login_interactive,
     make_mcp_connection_params,
 )
-
 
 __all__ = [
     "BarndoorSDK",

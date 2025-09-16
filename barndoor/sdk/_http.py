@@ -6,8 +6,9 @@ pooling and error handling consistently across the SDK.
 
 from __future__ import annotations
 
-import httpx
 from dataclasses import dataclass
+
+import httpx
 
 from .exceptions import ConnectionError
 
@@ -15,6 +16,7 @@ from .exceptions import ConnectionError
 @dataclass
 class TimeoutConfig:
     """Configuration for HTTP request timeouts."""
+
     read: float = 30.0
     connect: float = 10.0
     write: float = 30.0
@@ -39,7 +41,7 @@ class HTTPClient:
                 pool=self.timeout_config.pool,
             )
             self._client = httpx.AsyncClient(timeout=timeout)
-        
+
         try:
             resp = await self._client.request(method, url, **kwargs)
             resp.raise_for_status()

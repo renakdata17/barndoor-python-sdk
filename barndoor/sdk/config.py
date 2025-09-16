@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
 
 from dotenv import load_dotenv
 from jose import jwt
@@ -13,35 +12,35 @@ from pydantic import BaseModel, Field
 
 class BarndoorConfig(BaseModel):
     """Unified configuration for the Barndoor SDK."""
-    
+
     # Authentication
     auth_domain: str = Field(default="auth.barndoor.ai")
     client_id: str = Field(default="")
     client_secret: str = Field(default="")
     api_audience: str = Field(default="https://barndoor.ai/")
-    
+
     # API endpoints (templates support {organization_id})
     api_base_url: str = Field(default="https://{organization_id}.mcp.barndoor.ai")
     mcp_base_url: str = Field(default="https://{organization_id}.mcp.barndoor.ai")
-    
+
     # Runtime settings
     environment: str = Field(default="production")
     prompt_for_login: bool = Field(default=False)
     skip_login_local: bool = Field(default=False)
-    
+
     # Organization-specific overrides (populated from JWT)
-    organization_id: Optional[str] = Field(default=None)
-    
+    organization_id: str | None = Field(default=None)
+
     class Config:
         frozen = True
 
     @classmethod
-    def from_environment(cls, token: Optional[str] = None) -> "BarndoorConfig":
+    def from_environment(cls, token: str | None = None) -> BarndoorConfig:
         """Create configuration from environment variables and optional JWT token."""
-        
+
         # Load environment variables
         env_mode = (os.getenv("MODE") or os.getenv("BARNDOOR_ENV", "production")).lower()
-        
+
         # Base configuration from environment
         config_data = {
             "auth_domain": _get_env_var(["AUTH_DOMAIN", "AUTH0_DOMAIN"], "auth.barndoor.ai"),
@@ -52,31 +51,46 @@ class BarndoorConfig(BaseModel):
             "prompt_for_login": _get_bool("PROMPT_FOR_LOGIN", False),
             "skip_login_local": _get_bool("SKIP_LOGIN_LOCAL", False),
         }
-        
+
         # Set environment-specific defaults
         if env_mode in ("localdev", "local"):
-            config_data.update({
-                "auth_domain": _get_env_var(["AUTH_DOMAIN"], "localhost:3001"),
-                "api_base_url": os.getenv("BARNDOOR_API", "http://localhost:8000"),
-                "mcp_base_url": os.getenv("BARNDOOR_URL", "http://localhost:8000"),
-            })
+            config_data.update(
+                {
+                    "auth_domain": _get_env_var(["AUTH_DOMAIN"], "localhost:3001"),
+                    "api_base_url": os.getenv("BARNDOOR_API", "http://localhost:8000"),
+                    "mcp_base_url": os.getenv("BARNDOOR_URL", "http://localhost:8000"),
+                }
+            )
         elif env_mode in ("development", "dev"):
-            config_data.update({
-                "api_base_url": os.getenv("BARNDOOR_API", "https://{organization_id}.mcp.barndoordev.com"),
-                "mcp_base_url": os.getenv("BARNDOOR_URL", "https://{organization_id}.mcp.barndoordev.com"),
-            })
+            config_data.update(
+                {
+                    "api_base_url": os.getenv(
+                        "BARNDOOR_API", "https://{organization_id}.mcp.barndoordev.com"
+                    ),
+                    "mcp_base_url": os.getenv(
+                        "BARNDOOR_URL", "https://{organization_id}.mcp.barndoordev.com"
+                    ),
+                }
+            )
         else:  # production
-            config_data.update({
-                "api_base_url": os.getenv("BARNDOOR_API", "https://{organization_id}.mcp.barndoor.ai"),
-                "mcp_base_url": os.getenv("BARNDOOR_URL", "https://{organization_id}.mcp.barndoor.ai"),
-            })
-        
+            config_data.update(
+                {
+                    "api_base_url": os.getenv(
+                        "BARNDOOR_API", "https://{organization_id}.mcp.barndoor.ai"
+                    ),
+                    "mcp_base_url": os.getenv(
+                        "BARNDOOR_URL", "https://{organization_id}.mcp.barndoor.ai"
+                    ),
+                }
+            )
+
         # Apply JWT-based overrides if token provided
         if token:
             try:
                 claims = jwt.get_unverified_claims(token)
-                
-                # Look for organization name in user claims first, then at top level, then fallback to org_id
+
+                # Look for organization name in user claims first,
+                # then at top level, then fallback to org_id
                 org_name = None
                 if user_claims := claims.get("user"):
                     org_name = user_claims.get("organization_name")
@@ -88,15 +102,19 @@ class BarndoorConfig(BaseModel):
                 if org_name:
                     config_data["organization_id"] = org_name
                     # Resolve URL templates
-                    config_data["api_base_url"] = config_data["api_base_url"].format(organization_id=org_name)
-                    config_data["mcp_base_url"] = config_data["mcp_base_url"].format(organization_id=org_name)
-            except Exception as e:
+                    config_data["api_base_url"] = config_data["api_base_url"].format(
+                        organization_id=org_name
+                    )
+                    config_data["mcp_base_url"] = config_data["mcp_base_url"].format(
+                        organization_id=org_name
+                    )
+            except Exception:
                 # Ignore JWT parsing errors - use defaults
                 pass
-        
+
         return cls(**config_data)
 
-    def with_token(self, token: str) -> "BarndoorConfig":
+    def with_token(self, token: str) -> BarndoorConfig:
         """Return a new config instance with JWT-based overrides applied."""
         return self.from_environment(token)
 
@@ -118,20 +136,20 @@ def _get_bool(key: str, default: bool = False) -> bool:
 
 
 # Global configuration instance
-_config: Optional[BarndoorConfig] = None
+_config: BarndoorConfig | None = None
 
 
-def get_config(token: Optional[str] = None, *, reload: bool = False) -> BarndoorConfig:
+def get_config(token: str | None = None, *, reload: bool = False) -> BarndoorConfig:
     """Get the global configuration instance."""
     global _config
-    
+
     if _config is None or reload or token:
         _config = BarndoorConfig.from_environment(token)
-    
+
     return _config
 
 
-def load_dotenv_for_sdk(path: Optional[Path] = None, *, override: bool = False) -> None:
+def load_dotenv_for_sdk(path: Path | None = None, *, override: bool = False) -> None:
     """Load environment variables from .env file."""
     if path is None:
         mode = os.getenv("MODE", os.getenv("BARNDOOR_ENV", "localdev")).lower()

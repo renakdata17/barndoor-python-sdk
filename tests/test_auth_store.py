@@ -2,22 +2,22 @@
 
 import asyncio
 import json
-import os
 import tempfile
 import time
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch, mock_open
-import pytest
+from unittest.mock import MagicMock, patch
+
 import httpx
+import pytest
 
 from barndoor.sdk.auth_store import (
     TokenManager,
-    verify_jwt_local,
-    _get_jwks,
     _FileLock,
+    _get_jwks,
+    clear_cached_token,
     load_user_token,
     save_user_token,
-    clear_cached_token,
+    verify_jwt_local,
 )
 from barndoor.sdk.exceptions import TokenError, TokenExpiredError
 
@@ -59,7 +59,10 @@ def mock_config():
 def sample_token_data():
     """Sample token data for testing."""
     return {
-        "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJleHAiOjk5OTk5OTk5OTl9.test",
+        "access_token": (
+            "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9"
+            ".eyJzdWIiOiJ0ZXN0LXVzZXIiLCJleHAiOjk5OTk5OTk5OTl9.test"
+        ),
         "refresh_token": "refresh_token_123",
         "token_type": "Bearer",
         "expires_in": 3600,
@@ -70,7 +73,10 @@ def sample_token_data():
 def expired_token_data():
     """Expired token data for testing."""
     return {
-        "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJleHAiOjE2MDAwMDAwMDB9.test",
+        "access_token": (
+            "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9"
+            ".eyJzdWIiOiJ0ZXN0LXVzZXIiLCJleHAiOjE2MDAwMDAwMDB9.test"
+        ),
         "refresh_token": "refresh_token_123",
         "token_type": "Bearer",
         "expires_in": 3600,
@@ -103,40 +109,46 @@ class TestTokenManager:
     async def test_get_valid_token_no_token(self, temp_token_dir):
         """Test get_valid_token when no token exists."""
         manager = TokenManager("https://api.test.com")
-        
+
         with pytest.raises(TokenError, match="No token found"):
             await manager.get_valid_token()
 
     @pytest.mark.asyncio
-    async def test_get_valid_token_valid_local(self, temp_token_dir, sample_token_data, mock_config):
+    async def test_get_valid_token_valid_local(
+        self, temp_token_dir, sample_token_data, mock_config
+    ):
         """Test get_valid_token with valid token (local verification)."""
         # Save token to file
         token_file = temp_token_dir / "token.json"
-        with open(token_file, 'w') as f:
+        with open(token_file, "w") as f:
             json.dump(sample_token_data, f)
 
         manager = TokenManager("https://api.test.com")
-        
-        with patch("barndoor.sdk.config.get_static_config", return_value=mock_config), \
-             patch("barndoor.sdk.auth_store.verify_jwt_local", return_value=True):
-            
+
+        with (
+            patch("barndoor.sdk.config.get_static_config", return_value=mock_config),
+            patch("barndoor.sdk.auth_store.verify_jwt_local", return_value=True),
+        ):
             token = await manager.get_valid_token()
             assert token == sample_token_data["access_token"]
 
     @pytest.mark.asyncio
-    async def test_get_valid_token_valid_remote(self, temp_token_dir, sample_token_data, mock_config):
+    async def test_get_valid_token_valid_remote(
+        self, temp_token_dir, sample_token_data, mock_config
+    ):
         """Test get_valid_token with valid token (remote verification)."""
         # Save token to file
         token_file = temp_token_dir / "token.json"
-        with open(token_file, 'w') as f:
+        with open(token_file, "w") as f:
             json.dump(sample_token_data, f)
 
         manager = TokenManager("https://api.test.com")
-        
-        with patch("barndoor.sdk.config.get_static_config", return_value=mock_config), \
-             patch("barndoor.sdk.auth_store.verify_jwt_local", return_value=None), \
-             patch.object(manager, "_is_token_live_remote", return_value=True):
-            
+
+        with (
+            patch("barndoor.sdk.config.get_static_config", return_value=mock_config),
+            patch("barndoor.sdk.auth_store.verify_jwt_local", return_value=None),
+            patch.object(manager, "_is_token_live_remote", return_value=True),
+        ):
             token = await manager.get_valid_token()
             assert token == sample_token_data["access_token"]
 
@@ -145,11 +157,11 @@ class TestTokenManager:
         """Test that rotated refresh tokens are properly persisted."""
         # Save initial token to file
         token_file = temp_token_dir / "token.json"
-        with open(token_file, 'w') as f:
+        with open(token_file, "w") as f:
             json.dump(sample_token_data, f)
 
         manager = TokenManager("https://api.test.com")
-        
+
         # Mock refresh response with new refresh token
         new_token_data = {
             "access_token": "new_access_token",
@@ -157,90 +169,99 @@ class TestTokenManager:
             "token_type": "Bearer",
             "expires_in": 3600,
         }
-        
-        with patch("barndoor.sdk.config.get_static_config", return_value=mock_config), \
-             patch("barndoor.sdk.auth_store.verify_jwt_local", return_value=False), \
-             patch.object(manager, "_is_token_live_remote", return_value=False), \
-             patch.object(manager, "_refresh_token", return_value=new_token_data):
-            
+
+        with (
+            patch("barndoor.sdk.config.get_static_config", return_value=mock_config),
+            patch("barndoor.sdk.auth_store.verify_jwt_local", return_value=False),
+            patch.object(manager, "_is_token_live_remote", return_value=False),
+            patch.object(manager, "_refresh_token", return_value=new_token_data),
+        ):
             token = await manager.get_valid_token()
             assert token == "new_access_token"
-            
+
             # Verify the rotated refresh token was saved
-            with open(token_file, 'r') as f:
+            with open(token_file) as f:
                 saved_data = json.load(f)
-            
+
             assert saved_data["access_token"] == "new_access_token"
             assert saved_data["refresh_token"] == "new_refresh_token_456"  # Should be the new one
             assert saved_data["token_type"] == "Bearer"  # Original data preserved
 
     @pytest.mark.asyncio
-    async def test_refresh_token_error_handling(self, temp_token_dir, sample_token_data, mock_config):
+    async def test_refresh_token_error_handling(
+        self, temp_token_dir, sample_token_data, mock_config
+    ):
         """Test error handling in _refresh_token method."""
         # Save token to file
         token_file = temp_token_dir / "token.json"
-        with open(token_file, 'w') as f:
+        with open(token_file, "w") as f:
             json.dump(sample_token_data, f)
 
         manager = TokenManager("https://api.test.com")
-        
+
         # Test 400 error (invalid refresh token)
         mock_response_400 = MagicMock()
         mock_response_400.status_code = 400
         mock_response_400.json.return_value = {"error_description": "Invalid refresh token"}
         mock_response_400.headers = {"content-type": "application/json"}
-        
-        with patch("barndoor.sdk.config.get_static_config", return_value=mock_config), \
-             patch("httpx.AsyncClient") as mock_client:
-            
+
+        with (
+            patch("barndoor.sdk.config.get_static_config", return_value=mock_config),
+            patch("httpx.AsyncClient") as mock_client,
+        ):
             mock_client.return_value.__aenter__.return_value.post.return_value = mock_response_400
-            
+
             with pytest.raises(TokenExpiredError, match="Refresh token expired or invalid"):
                 await manager._refresh_token(sample_token_data)
 
         # Test 429 error (rate limited)
         mock_response_429 = MagicMock()
         mock_response_429.status_code = 429
-        
-        with patch("barndoor.sdk.config.get_static_config", return_value=mock_config), \
-             patch("httpx.AsyncClient") as mock_client:
-            
+
+        with (
+            patch("barndoor.sdk.config.get_static_config", return_value=mock_config),
+            patch("httpx.AsyncClient") as mock_client,
+        ):
             mock_client.return_value.__aenter__.return_value.post.return_value = mock_response_429
-            
+
             with pytest.raises(TokenError, match="Rate limited"):
                 await manager._refresh_token(sample_token_data)
 
         # Test 500 error (server error)
         mock_response_500 = MagicMock()
         mock_response_500.status_code = 500
-        
-        with patch("barndoor.sdk.config.get_static_config", return_value=mock_config), \
-             patch("httpx.AsyncClient") as mock_client:
 
+        with (
+            patch("barndoor.sdk.config.get_static_config", return_value=mock_config),
+            patch("httpx.AsyncClient") as mock_client,
+        ):
             mock_client.return_value.__aenter__.return_value.post.return_value = mock_response_500
 
             with pytest.raises(TokenError, match="Auth server temporarily unavailable"):
                 await manager._refresh_token(sample_token_data)
 
         # Test timeout error
-        with patch("barndoor.sdk.config.get_static_config", return_value=mock_config), \
-             patch("httpx.AsyncClient") as mock_client:
-            
-            mock_client.return_value.__aenter__.return_value.post.side_effect = httpx.TimeoutException("Timeout")
-            
+        with (
+            patch("barndoor.sdk.config.get_static_config", return_value=mock_config),
+            patch("httpx.AsyncClient") as mock_client,
+        ):
+            mock_client.return_value.__aenter__.return_value.post.side_effect = (
+                httpx.TimeoutException("Timeout")
+            )
+
             with pytest.raises(TokenError, match="Token refresh timed out"):
                 await manager._refresh_token(sample_token_data)
 
     def test_save_token_data_file_locking(self, temp_token_dir, sample_token_data):
         """Test that _save_token_data uses file locking."""
         manager = TokenManager("https://api.test.com")
-        
+
         with patch("barndoor.sdk.auth_store._FileLock") as mock_lock:
             mock_lock.return_value.__enter__.return_value = mock_lock
             mock_lock.return_value.__exit__.return_value = None
-            
+
             manager._save_token_data(sample_token_data)
-            
+
             # Verify file lock was used
             mock_lock.assert_called_once()
 
@@ -254,7 +275,7 @@ class TestTokenManager:
         """Test _load_token_data with invalid JSON."""
         token_file = temp_token_dir / "token.json"
         token_file.write_text("invalid json")
-        
+
         manager = TokenManager("https://api.test.com")
         result = manager._load_token_data()
         assert result is None
@@ -262,13 +283,13 @@ class TestTokenManager:
     def test_should_refresh_token(self, sample_token_data, expired_token_data):
         """Test _should_refresh_token logic."""
         manager = TokenManager("https://api.test.com")
-        
+
         # Valid token should not need refresh
         assert not manager._should_refresh_token(sample_token_data)
-        
+
         # Expired token should need refresh
         assert manager._should_refresh_token(expired_token_data)
-        
+
         # Invalid token data should need refresh
         assert manager._should_refresh_token({"access_token": "invalid"})
 
@@ -282,21 +303,23 @@ class TestJWTVerification:
             mock_response = MagicMock()
             mock_response.json.return_value = {"keys": mock_jwks_keys}
             mock_client.return_value.__enter__.return_value.get.return_value = mock_response
-            
+
             # Clear cache first
             _get_jwks.cache_clear()
-            
+
             keys = _get_jwks("test.auth0.com")
             assert keys == mock_jwks_keys
 
     def test_get_jwks_failure(self):
         """Test JWKS fetching failure."""
         with patch("httpx.Client") as mock_client:
-            mock_client.return_value.__enter__.return_value.get.side_effect = Exception("Network error")
-            
+            mock_client.return_value.__enter__.return_value.get.side_effect = Exception(
+                "Network error"
+            )
+
             # Clear cache first
             _get_jwks.cache_clear()
-            
+
             keys = _get_jwks("test.auth0.com")
             assert keys == []
 
@@ -308,33 +331,36 @@ class TestJWTVerification:
 
     def test_verify_jwt_local_success(self, mock_jwks_keys):
         """Test successful local JWT verification."""
-        with patch("barndoor.sdk.auth_store._get_jwks", return_value=mock_jwks_keys), \
-             patch("barndoor.sdk.auth_store.jwt.decode") as mock_decode:
-            
+        with (
+            patch("barndoor.sdk.auth_store._get_jwks", return_value=mock_jwks_keys),
+            patch("barndoor.sdk.auth_store.jwt.decode") as mock_decode,
+        ):
             mock_decode.return_value = {"sub": "test-user"}
-            
+
             result = verify_jwt_local("token", "test.auth0.com", "audience")
             assert result is True
 
     def test_verify_jwt_local_expired(self, mock_jwks_keys):
         """Test local JWT verification with expired token."""
         from jose import jwt as jose_jwt
-        
-        with patch("barndoor.sdk.auth_store._get_jwks", return_value=mock_jwks_keys), \
-             patch("barndoor.sdk.auth_store.jwt.decode") as mock_decode:
-            
+
+        with (
+            patch("barndoor.sdk.auth_store._get_jwks", return_value=mock_jwks_keys),
+            patch("barndoor.sdk.auth_store.jwt.decode") as mock_decode,
+        ):
             mock_decode.side_effect = jose_jwt.ExpiredSignatureError("Token expired")
-            
+
             result = verify_jwt_local("token", "test.auth0.com", "audience")
             assert result is False
 
     def test_verify_jwt_local_invalid(self, mock_jwks_keys):
         """Test local JWT verification with invalid token."""
-        with patch("barndoor.sdk.auth_store._get_jwks", return_value=mock_jwks_keys), \
-             patch("barndoor.sdk.auth_store.jwt.decode") as mock_decode:
-            
+        with (
+            patch("barndoor.sdk.auth_store._get_jwks", return_value=mock_jwks_keys),
+            patch("barndoor.sdk.auth_store.jwt.decode") as mock_decode,
+        ):
             mock_decode.side_effect = Exception("Invalid token")
-            
+
             result = verify_jwt_local("token", "test.auth0.com", "audience")
             assert result is None
 
@@ -346,7 +372,7 @@ class TestFileLocking:
         """Test _FileLock context manager."""
         test_file = temp_token_dir / "test.json"
         lock = _FileLock(test_file)
-        
+
         # Test successful lock acquisition and release
         with lock:
             assert lock.lock_fd is not None
@@ -355,7 +381,7 @@ class TestFileLocking:
         """Test _FileLock handles exceptions gracefully."""
         test_file = temp_token_dir / "test.json"
         lock = _FileLock(test_file)
-        
+
         # Mock file operations to raise exceptions
         with patch("builtins.open", side_effect=OSError("Permission denied")):
             # Should not raise exception, just continue without locking
@@ -369,7 +395,7 @@ class TestLegacyFunctions:
     def test_load_user_token_success(self, isolated_token_file, sample_token_data):
         """Test load_user_token with valid token file."""
         home_dir, token_file = isolated_token_file
-        with open(token_file, 'w') as f:
+        with open(token_file, "w") as f:
             json.dump(sample_token_data, f)
 
         # Patch the hardcoded path in load_user_token
@@ -400,7 +426,7 @@ class TestLegacyFunctions:
             mock_home.return_value = home_dir
             save_user_token("test_token")
 
-            with open(token_file, 'r') as f:
+            with open(token_file) as f:
                 data = json.load(f)
 
             assert data["access_token"] == "test_token"
@@ -414,7 +440,7 @@ class TestLegacyFunctions:
             mock_home.return_value = home_dir
             save_user_token(sample_token_data)
 
-            with open(token_file, 'r') as f:
+            with open(token_file) as f:
                 data = json.load(f)
 
             assert data == sample_token_data
@@ -422,7 +448,7 @@ class TestLegacyFunctions:
     def test_clear_cached_token(self, isolated_token_file, sample_token_data):
         """Test clear_cached_token function."""
         home_dir, token_file = isolated_token_file
-        with open(token_file, 'w') as f:
+        with open(token_file, "w") as f:
             json.dump(sample_token_data, f)
 
         # Patch the hardcoded path in clear_cached_token
@@ -440,7 +466,7 @@ class TestConcurrentAccess:
         """Test concurrent token refresh operations."""
         # Save initial token to file
         token_file = temp_token_dir / "token.json"
-        with open(token_file, 'w') as f:
+        with open(token_file, "w") as f:
             json.dump(sample_token_data, f)
 
         manager1 = TokenManager("https://api.test.com")
@@ -463,18 +489,17 @@ class TestConcurrentAccess:
             await asyncio.sleep(0.1)
             return new_token_data
 
-        with patch("barndoor.sdk.config.get_static_config", return_value=mock_config), \
-             patch("barndoor.sdk.auth_store.verify_jwt_local", return_value=False), \
-             patch.object(manager1, "_is_token_live_remote", return_value=False), \
-             patch.object(manager2, "_is_token_live_remote", return_value=False), \
-             patch.object(manager1, "_refresh_token", side_effect=mock_refresh), \
-             patch.object(manager2, "_refresh_token", side_effect=mock_refresh):
-
+        with (
+            patch("barndoor.sdk.config.get_static_config", return_value=mock_config),
+            patch("barndoor.sdk.auth_store.verify_jwt_local", return_value=False),
+            patch.object(manager1, "_is_token_live_remote", return_value=False),
+            patch.object(manager2, "_is_token_live_remote", return_value=False),
+            patch.object(manager1, "_refresh_token", side_effect=mock_refresh),
+            patch.object(manager2, "_refresh_token", side_effect=mock_refresh),
+        ):
             # Run concurrent token refresh operations
             results = await asyncio.gather(
-                manager1.get_valid_token(),
-                manager2.get_valid_token(),
-                return_exceptions=True
+                manager1.get_valid_token(), manager2.get_valid_token(), return_exceptions=True
             )
 
             # Both should succeed
@@ -486,7 +511,6 @@ class TestConcurrentAccess:
     def test_concurrent_file_writes(self, temp_token_dir, sample_token_data):
         """Test concurrent file write operations with locking."""
         import threading
-        import time
 
         token_file = temp_token_dir / "token.json"
         manager = TokenManager("https://api.test.com")
@@ -521,7 +545,7 @@ class TestConcurrentAccess:
         assert all(result == "success" for result in write_results)
 
         # File should contain valid JSON (not corrupted)
-        with open(token_file, 'r') as f:
+        with open(token_file) as f:
             final_data = json.load(f)
 
         # Should be one of the two tokens (whichever wrote last)
@@ -547,14 +571,19 @@ class TestEdgeCases:
                 await manager._refresh_token(token_data)
 
     @pytest.mark.asyncio
-    async def test_network_error_during_refresh(self, temp_token_dir, sample_token_data, mock_config):
+    async def test_network_error_during_refresh(
+        self, temp_token_dir, sample_token_data, mock_config
+    ):
         """Test network error during token refresh."""
         manager = TokenManager("https://api.test.com")
 
-        with patch("barndoor.sdk.config.get_static_config", return_value=mock_config), \
-             patch("httpx.AsyncClient") as mock_client:
-
-            mock_client.return_value.__aenter__.return_value.post.side_effect = httpx.NetworkError("Connection failed")
+        with (
+            patch("barndoor.sdk.config.get_static_config", return_value=mock_config),
+            patch("httpx.AsyncClient") as mock_client,
+        ):
+            mock_client.return_value.__aenter__.return_value.post.side_effect = httpx.NetworkError(
+                "Connection failed"
+            )
 
             with pytest.raises(TokenError, match="Network error during token refresh"):
                 await manager._refresh_token(sample_token_data)
@@ -581,9 +610,10 @@ class TestEdgeCases:
         mock_response.raise_for_status.return_value = None
         mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
 
-        with patch("barndoor.sdk.config.get_static_config", return_value=mock_config), \
-             patch("httpx.AsyncClient") as mock_client:
-
+        with (
+            patch("barndoor.sdk.config.get_static_config", return_value=mock_config),
+            patch("httpx.AsyncClient") as mock_client,
+        ):
             mock_client.return_value.__aenter__.return_value.post.return_value = mock_response
 
             with pytest.raises(TokenError, match="Token refresh failed"):
@@ -611,20 +641,23 @@ class TestEdgeCases:
             assert mock_client.return_value.__enter__.return_value.get.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_token_validation_fallback_chain(self, temp_token_dir, sample_token_data, mock_config):
+    async def test_token_validation_fallback_chain(
+        self, temp_token_dir, sample_token_data, mock_config
+    ):
         """Test the complete validation fallback chain."""
         # Save token to file
         token_file = temp_token_dir / "token.json"
-        with open(token_file, 'w') as f:
+        with open(token_file, "w") as f:
             json.dump(sample_token_data, f)
 
         manager = TokenManager("https://api.test.com")
 
         # Test scenario: local verification fails, remote verification succeeds
-        with patch("barndoor.sdk.config.get_static_config", return_value=mock_config), \
-             patch("barndoor.sdk.auth_store.verify_jwt_local", return_value=None), \
-             patch.object(manager, "_is_token_live_remote", return_value=True):
-
+        with (
+            patch("barndoor.sdk.config.get_static_config", return_value=mock_config),
+            patch("barndoor.sdk.auth_store.verify_jwt_local", return_value=None),
+            patch.object(manager, "_is_token_live_remote", return_value=True),
+        ):
             token = await manager.get_valid_token()
             assert token == sample_token_data["access_token"]
 
@@ -634,10 +667,11 @@ class TestEdgeCases:
             "refresh_token": "new_refresh_token",
         }
 
-        with patch("barndoor.sdk.config.get_static_config", return_value=mock_config), \
-             patch("barndoor.sdk.auth_store.verify_jwt_local", return_value=None), \
-             patch.object(manager, "_is_token_live_remote", return_value=False), \
-             patch.object(manager, "_refresh_token", return_value=new_token_data):
-
+        with (
+            patch("barndoor.sdk.config.get_static_config", return_value=mock_config),
+            patch("barndoor.sdk.auth_store.verify_jwt_local", return_value=None),
+            patch.object(manager, "_is_token_live_remote", return_value=False),
+            patch.object(manager, "_refresh_token", return_value=new_token_data),
+        ):
             token = await manager.get_valid_token()
             assert token == "refreshed_token"

@@ -1,7 +1,8 @@
 """Tests for proxy_url-first behavior in make_mcp_connection_params."""
 
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, patch
 
 from barndoor.sdk.quickstart import make_mcp_connection_params
 
@@ -54,7 +55,9 @@ async def test_make_connection_params_uses_proxy_url_from_details(sdk_with_mocke
     }
 
     # list_servers then get_server
-    sdk_with_mocked_http._http.request = AsyncMock(side_effect=[mock_server_list, mock_server_detail])
+    sdk_with_mocked_http._http.request = AsyncMock(
+        side_effect=[mock_server_list, mock_server_detail]
+    )
 
     params, public_url = await make_mcp_connection_params(sdk_with_mocked_http, "notion")
 
@@ -85,8 +88,9 @@ async def test_make_connection_params_no_proxy_url_raises(sdk_with_mocked_http):
         # proxy_url intentionally missing
     }
 
-    sdk_with_mocked_http._http.request = AsyncMock(side_effect=[mock_server_list, mock_server_detail])
+    sdk_with_mocked_http._http.request = AsyncMock(
+        side_effect=[mock_server_list, mock_server_detail]
+    )
 
     with pytest.raises(RuntimeError, match="Registry did not provide a proxy_url"):
         await make_mcp_connection_params(sdk_with_mocked_http, "custom")
-

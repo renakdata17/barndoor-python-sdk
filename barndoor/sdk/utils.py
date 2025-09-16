@@ -5,10 +5,7 @@ potentially useful for SDK users building applications.
 """
 
 import os
-
-from typing import Optional
 from urllib.parse import quote
-
 
 __all__ = [
     "external_mcp_url",
@@ -19,7 +16,7 @@ def external_mcp_url(
     server_slug: str,
     jwt_token: str,
     env: str = "prod",
-    region: Optional[str] = None,
+    region: str | None = None,
 ) -> str:
     """Construct the external MCP URL for a given server.
 

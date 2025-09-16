@@ -5,21 +5,24 @@ import os
 import time
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+
 import httpx
 from jose import jwt
-from .logging import get_logger
+
 from .exceptions import TokenError, TokenExpiredError
+from .logging import get_logger
 
 # Import file locking utilities
 try:
     import fcntl  # Unix/Linux file locking
+
     HAS_FCNTL = True
 except ImportError:
     HAS_FCNTL = False
 
 try:
     import msvcrt  # Windows file locking
+
     HAS_MSVCRT = True
 except ImportError:
     HAS_MSVCRT = False
@@ -41,7 +44,7 @@ class _FileLock:
         """Acquire file lock."""
         try:
             # Create lock file
-            self.lock_fd = open(self.lock_file, 'w')
+            self.lock_fd = open(self.lock_file, "w")
 
             if HAS_FCNTL:
                 # Unix/Linux: use fcntl for advisory locking
@@ -91,7 +94,7 @@ def _get_jwks(auth_domain: str) -> list:
         return []  # Return empty list to fall back to remote validation
 
 
-def verify_jwt_local(token: str, auth_domain: str, audience: str) -> Optional[bool]:
+def verify_jwt_local(token: str, auth_domain: str, audience: str) -> bool | None:
     """Verify JWT locally using JWKS.
 
     Returns:
@@ -125,10 +128,10 @@ def verify_jwt_local(token: str, auth_domain: str, audience: str) -> Optional[bo
 
 class TokenManager:
     """Manages token storage, validation, and refresh."""
-    
+
     def __init__(self, api_base_url: str):
         self.api_base_url = api_base_url.rstrip("/")
-        
+
     async def get_valid_token(self) -> str:
         """Get a valid token, refreshing if necessary."""
         token_data = self._load_token_data()
@@ -144,32 +147,32 @@ class TokenManager:
         except Exception as e:
             logger.error(f"Token validation/refresh failed: {e}")
             raise TokenExpiredError("Token expired and refresh failed. Please re-authenticate.")
-    
-    def _load_token_data(self) -> Optional[dict]:
+
+    def _load_token_data(self) -> dict | None:
         """Load token data from storage."""
         if not TOKEN_FILE.exists():
             return None
-            
+
         try:
-            with open(TOKEN_FILE, 'r') as f:
+            with open(TOKEN_FILE) as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"Failed to load token file: {e}")
             return None
-    
+
     def _save_token_data(self, token_data: dict) -> None:
         """Save token data to storage with file locking to prevent race conditions."""
         TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
 
         # Use file locking to prevent concurrent writes
         with _FileLock(TOKEN_FILE):
-            with open(TOKEN_FILE, 'w') as f:
+            with open(TOKEN_FILE, "w") as f:
                 json.dump(token_data, f, indent=2)
 
             # Set restrictive permissions
             os.chmod(TOKEN_FILE, 0o600)
             logger.debug("Token saved to storage")
-    
+
     def _should_refresh_token(self, token_data: dict) -> bool:
         """Check if token should be refreshed."""
         try:
@@ -180,7 +183,7 @@ class TokenManager:
             return (exp - time.time()) < 300
         except Exception:
             return True  # Refresh if we can't parse the token
-    
+
     async def _refresh_token(self, token_data: dict) -> dict:
         """Refresh the access token using refresh token.
 
@@ -193,6 +196,7 @@ class TokenManager:
             raise TokenError("No refresh token available")
 
         from .config import get_static_config
+
         cfg = get_static_config()
 
         payload = {
@@ -205,14 +209,16 @@ class TokenManager:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"https://{cfg.auth_domain}/oauth/token",
-                    json=payload,
-                    timeout=15.0
+                    f"https://{cfg.auth_domain}/oauth/token", json=payload, timeout=15.0
                 )
 
                 if response.status_code == 400:
                     # Bad request - likely invalid refresh token
-                    error_data = response.json() if response.headers.get("content-type", "").startswith("application/json") else {}
+                    error_data = (
+                        response.json()
+                        if response.headers.get("content-type", "").startswith("application/json")
+                        else {}
+                    )
                     error_desc = error_data.get("error_description", "Invalid refresh token")
                     logger.warning(f"Refresh token invalid: {error_desc}")
                     raise TokenExpiredError(f"Refresh token expired or invalid: {error_desc}")
@@ -225,7 +231,9 @@ class TokenManager:
                 elif response.status_code >= 500:
                     # Server error - temporary issue
                     logger.warning(f"Auth server error during refresh: {response.status_code}")
-                    raise TokenError(f"Auth server temporarily unavailable (HTTP {response.status_code})")
+                    raise TokenError(
+                        f"Auth server temporarily unavailable (HTTP {response.status_code})"
+                    )
 
                 # Raise for any other HTTP errors
                 response.raise_for_status()
@@ -251,7 +259,7 @@ class TokenManager:
                 response = await client.get(
                     f"https://{auth_domain}/userinfo",
                     headers={"Authorization": f"Bearer {access_token}"},
-                    timeout=5.0
+                    timeout=5.0,
                 )
                 return response.status_code == 200
         except Exception as e:
@@ -263,6 +271,7 @@ class TokenManager:
         access_token = token_data["access_token"]
 
         from .config import get_static_config
+
         cfg = get_static_config()
 
         # Fast path: local JWT verification
@@ -289,14 +298,14 @@ class TokenManager:
 
 
 # Legacy functions for backward compatibility
-def load_user_token() -> Optional[str]:
+def load_user_token() -> str | None:
     """Load user token from cache."""
     token_file = Path.home() / ".barndoor" / "token.json"
     if not token_file.exists():
         return None
-        
+
     try:
-        with open(token_file, 'r') as f:
+        with open(token_file) as f:
             data = json.load(f)
             return data.get("access_token")
     except Exception:
@@ -307,16 +316,16 @@ def save_user_token(token: str | dict) -> None:
     """Save user token to cache."""
     token_file = Path.home() / ".barndoor" / "token.json"
     token_file.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Handle both string tokens and full token responses
     if isinstance(token, str):
         token_data = {"access_token": token}
     else:
         token_data = token
-        
-    with open(token_file, 'w') as f:
+
+    with open(token_file, "w") as f:
         json.dump(token_data, f, indent=2)
-    
+
     os.chmod(token_file, 0o600)
 
 
@@ -340,7 +349,7 @@ async def is_token_active(api_base_url: str) -> bool:
         return False
 
     try:
-        with open(token_file, 'r') as f:
+        with open(token_file) as f:
             token_data = json.load(f)
     except Exception:
         return False
@@ -356,7 +365,7 @@ async def is_token_active(api_base_url: str) -> bool:
             response = await client.get(
                 f"https://{cfg.auth_domain}/userinfo",
                 headers={"Authorization": f"Bearer {access_token}"},
-                timeout=10.0
+                timeout=10.0,
             )
             return response.status_code == 200
     except Exception:
@@ -365,15 +374,15 @@ async def is_token_active(api_base_url: str) -> bool:
 
 async def is_token_active_with_refresh(api_base_url: str) -> bool:
     """Check if cached token is active, attempting refresh if needed."""
-    from .config import get_static_config
     from .auth import refresh_access_token
+    from .config import get_static_config
 
     token_file = Path.home() / ".barndoor" / "token.json"
     if not token_file.exists():
         return False
 
     try:
-        with open(token_file, 'r') as f:
+        with open(token_file) as f:
             token_data = json.load(f)
     except Exception:
         return False
@@ -389,7 +398,7 @@ async def is_token_active_with_refresh(api_base_url: str) -> bool:
             response = await client.get(
                 f"{api_base_url}/identity/token",
                 headers={"Authorization": f"Bearer {access_token}"},
-                timeout=10.0
+                timeout=10.0,
             )
             if response.status_code == 200:
                 return True
@@ -407,7 +416,7 @@ async def is_token_active_with_refresh(api_base_url: str) -> bool:
             refresh_token=refresh_token,
             client_id=cfg.client_id,
             client_secret=cfg.client_secret,
-            domain=cfg.auth_domain
+            domain=cfg.auth_domain,
         )
 
         # Merge with existing data to preserve any additional fields
@@ -442,6 +451,7 @@ async def validate_token(token: str, api_base_url: str) -> dict:
     Auth0's /userinfo endpoint for validation.
     """
     from .config import get_static_config
+
     cfg = get_static_config()
 
     # Fast path: local JWT verification
@@ -457,7 +467,7 @@ async def validate_token(token: str, api_base_url: str) -> dict:
                 response = await client.get(
                     f"https://{cfg.auth_domain}/userinfo",
                     headers={"Authorization": f"Bearer {token}"},
-                    timeout=5.0
+                    timeout=5.0,
                 )
                 return {"valid": response.status_code == 200}
         except Exception as e:

@@ -24,7 +24,6 @@ from __future__ import annotations
 # Standard library
 import asyncio
 import logging
-
 from uuid import uuid4
 
 # Import required auth helpers explicitly so type checkers can resolve them
@@ -34,13 +33,13 @@ from barndoor.sdk.auth import (
     start_local_callback_server,
 )
 
+# Automatically load .env if not done yet
+from barndoor.sdk.config import get_static_config, load_dotenv_for_sdk
+
 from .auth_store import (
     load_user_token,
     save_user_token,
 )
-
-# Automatically load .env if not done yet
-from barndoor.sdk.config import get_static_config, load_dotenv_for_sdk
 
 # Load default .env file exactly once – safe no-op if already loaded by caller
 load_dotenv_for_sdk()
@@ -65,15 +64,15 @@ async def login_interactive(
     auth_domain: str | None = None,
     client_id: str | None = None,
     client_secret: str | None = None,
-    audience: str | None = None,  
+    audience: str | None = None,
     api_base_url: str | None = None,
     port: int = 52765,
 ) -> BarndoorSDK:
     """Return an initialized BarndoorSDK after ensuring valid user JWT."""
     from .auth_store import is_token_active_with_refresh
-    
+
     logger.info("Starting interactive login flow")
-    
+
     cfg = get_static_config()
 
     auth_domain = auth_domain or cfg.auth_domain
@@ -83,7 +82,8 @@ async def login_interactive(
 
     if not client_id or not client_secret:
         raise RuntimeError(
-            "AGENT_CLIENT_ID / AGENT_CLIENT_SECRET not set – create a .env file or export in the shell",
+            "AGENT_CLIENT_ID / AGENT_CLIENT_SECRET not set – "
+            "create a .env file or export in the shell"
         )
 
     # 1. try cached token with refresh ----------------------------------
@@ -102,6 +102,7 @@ async def login_interactive(
             audience=audience,
         )
         import webbrowser
+
         webbrowser.open(auth_url)
         logging.getLogger(__name__).info("Please complete login in your browser…")
         code, _ = await waiter
@@ -116,9 +117,10 @@ async def login_interactive(
 
     # Extract access token for SDK
     access_token = token_data if isinstance(token_data, str) else token_data["access_token"]
-    
+
     # 3. build dynamic configuration
     from barndoor.sdk.config import get_dynamic_config
+
     cfg_dyn = get_dynamic_config(access_token)
     api_base_url = api_base_url or cfg_dyn.api_base_url
 
@@ -141,18 +143,18 @@ async def ensure_server_connected(
     the connection is live.
     """
     logger.info(f"Ensuring {server_identifier} server is connected")
-    
+
     servers = await sdk.list_servers()
     server = next((s for s in servers if s.slug == server_identifier), None)
-    
+
     if not server:
         logger.error(f"Server '{server_identifier}' not found")
         raise ValueError(f"Server '{server_identifier}' not found")
-        
+
     if server.connection_status == "connected":
         logger.info(f"Server {server_identifier} already connected")
         return
-        
+
     logger.info(f"Connecting to {server_identifier}...")
     await sdk.ensure_server_connected(server_identifier, poll_seconds=timeout)
 

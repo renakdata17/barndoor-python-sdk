@@ -1,13 +1,11 @@
 """Test exception hierarchy."""
 
-import pytest
 from barndoor.sdk.exceptions import (
-    BarndoorError,
     AuthenticationError,
-    TokenError,
-    HTTPError,
+    BarndoorError,
     ConnectionError,
-    ServerNotFoundError,
+    HTTPError,
+    TokenError,
 )
 
 

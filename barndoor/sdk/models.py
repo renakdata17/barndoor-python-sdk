@@ -4,8 +4,6 @@ This module defines the data models used for API requests and responses,
 providing type safety and automatic validation.
 """
 
-from typing import Optional
-
 from pydantic import BaseModel
 
 
@@ -33,9 +31,9 @@ class ServerSummary(BaseModel):
     id: str
     name: str
     slug: str
-    provider: Optional[str] = None
+    provider: str | None = None
     connection_status: str
-    proxy_url: Optional[str] = None
+    proxy_url: str | None = None
 
 
 class ServerDetail(ServerSummary):
