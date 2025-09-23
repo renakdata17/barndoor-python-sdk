@@ -1,0 +1,75 @@
+name: Dev Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for proper versioning
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable_cache: true
+          version: 0.7.2
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Generate dev version
+        id: version
+        run: |
+          # Generate dev version using timestamp and short commit hash
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          DEV_VERSION="0.1.0.dev${TIMESTAMP}+${SHORT_SHA}"
+          echo "dev_version=${DEV_VERSION}" >> $GITHUB_OUTPUT
+          echo "Generated dev version: ${DEV_VERSION}"
+
+      - name: Build distributions
+        run: uv build
+
+      - name: List built files
+        run: ls -la dist/
+
+      - name: Get wheel filename
+        id: wheel
+        run: |
+          WHEEL_FILE=$(ls dist/*.whl | head -1 | xargs basename)
+          echo "wheel_filename=${WHEEL_FILE}" >> $GITHUB_OUTPUT
+          echo "Found wheel file: ${WHEEL_FILE}"
+
+      - name: Create Dev Pre-release
+        run: |
+          # Create a pre-release with the dev package
+          gh release create "barndoor-dev-${{ steps.version.outputs.dev_version }}" \
+            --title "barndoor Dev Release ${{ steps.version.outputs.dev_version }}" \
+            --notes "🚧 **Development Release**
+
+          This is an automated development release from commit ${{ github.sha }}.
+
+          **Changes since last release:**
+          - Built from latest main branch
+          - Commit: ${{ github.sha }}
+
+          **Installation:**
+          \`\`\`bash
+          # Install from GitHub release
+          pip install https://github.com/barndoor-ai/barndoor-python-sdk/releases/download/barndoor-dev-${{ steps.version.outputs.dev_version }}/${{ steps.wheel.outputs.wheel_filename }}
+          \`\`\`
+
+          ⚠️ This is a pre-release version for testing purposes." \
+            --prerelease \
+            dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
