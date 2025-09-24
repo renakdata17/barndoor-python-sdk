@@ -24,7 +24,7 @@ class TestBarndoorSDK:
             }
         ]
 
-        with patch.object(sdk_client, '_req', new_callable=AsyncMock) as mock_req:
+        with patch.object(sdk_client, "_req", new_callable=AsyncMock) as mock_req:
             mock_req.return_value = mock_response
 
             servers = await sdk_client.list_servers()

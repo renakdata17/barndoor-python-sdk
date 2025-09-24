@@ -160,7 +160,9 @@ class TestHTTPClient:
         mock_response.status_code = 400
         mock_response.text = "Bad Request"
 
-        http_error = httpx.HTTPStatusError("Bad Request", request=MagicMock(), response=mock_response)
+        http_error = httpx.HTTPStatusError(
+            "Bad Request", request=MagicMock(), response=mock_response
+        )
 
         with patch("barndoor.sdk._http.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -209,7 +211,9 @@ class TestHTTPClient:
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
 
-        http_error = httpx.HTTPStatusError("Internal Server Error", request=MagicMock(), response=mock_response)
+        http_error = httpx.HTTPStatusError(
+            "Internal Server Error", request=MagicMock(), response=mock_response
+        )
 
         with patch("barndoor.sdk._http.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()

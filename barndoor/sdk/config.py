@@ -34,7 +34,6 @@ class BarndoorConfig(BaseModel):
     class Config:
         frozen = True
 
-
     # Backwards-compatible uppercase aliases (read-only)
     @property
     def AUTH_DOMAIN(self) -> str:
@@ -101,10 +100,16 @@ class BarndoorConfig(BaseModel):
                 }
             )
         else:  # production
-            config_data.update({
-                "api_base_url": os.getenv("BARNDOOR_API", "https://{organization_id}.mcp.barndoor.ai"),
-                "mcp_base_url": os.getenv("BARNDOOR_URL", "https://{organization_id}.mcp.barndoor.ai"),
-            })
+            config_data.update(
+                {
+                    "api_base_url": os.getenv(
+                        "BARNDOOR_API", "https://{organization_id}.mcp.barndoor.ai"
+                    ),
+                    "mcp_base_url": os.getenv(
+                        "BARNDOOR_URL", "https://{organization_id}.mcp.barndoor.ai"
+                    ),
+                }
+            )
 
         # Apply JWT-based overrides if token provided
         if token:

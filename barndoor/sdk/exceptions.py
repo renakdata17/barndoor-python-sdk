@@ -128,7 +128,10 @@ class OAuthError(AuthenticationError):
     invalid authorization codes, expired tokens, or
     misconfigured OAuth applications.
     """
+
     pass
+
+
 class ConfigurationError(BarndoorError):
     """Raised when there's an issue with SDK configuration.
 
@@ -151,5 +154,3 @@ class TimeoutError(BarndoorError):
     """
 
     pass
-
-
