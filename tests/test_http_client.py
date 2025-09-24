@@ -160,9 +160,7 @@ class TestHTTPClient:
         mock_response.status_code = 400
         mock_response.text = "Bad Request"
 
-        http_error = httpx.HTTPStatusError(
-            "Bad Request", request=MagicMock(), response=mock_response
-        )
+        http_error = httpx.HTTPStatusError("Bad Request", request=MagicMock(), response=mock_response)
 
         with patch("barndoor.sdk._http.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -203,3 +201,25 @@ class TestHTTPClient:
 
         with pytest.raises(RuntimeError, match="HTTP client has been closed"):
             await client.request("GET", "https://api.test.com/endpoint")
+
+    @pytest.mark.asyncio
+    async def test_server_error_handling(self):
+        """Test 5xx server error is wrapped into HTTPError with friendly message."""
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+
+        http_error = httpx.HTTPStatusError("Internal Server Error", request=MagicMock(), response=mock_response)
+
+        with patch("barndoor.sdk._http.httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.request.side_effect = http_error
+            mock_client_class.return_value = mock_client
+
+            client = HTTPClient()
+
+            with pytest.raises(HTTPError) as exc_info:
+                await client.request("GET", "https://api.test.com/endpoint")
+
+            assert exc_info.value.status_code == 500
+            assert "Server error" in str(exc_info.value)

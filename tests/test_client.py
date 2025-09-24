@@ -24,7 +24,7 @@ class TestBarndoorSDK:
             }
         ]
 
-        with patch.object(sdk_client, "_req", new_callable=AsyncMock) as mock_req:
+        with patch.object(sdk_client, '_req', new_callable=AsyncMock) as mock_req:
             mock_req.return_value = mock_response
 
             servers = await sdk_client.list_servers()
@@ -77,3 +77,10 @@ class TestBarndoorSDK:
 
                 with pytest.raises(ValueError, match="Token validation failed"):
                     await sdk_client.ensure_valid_token()
+
+    @pytest.mark.asyncio
+    async def test_use_after_close_raises(self, sdk_client):
+        """Using the SDK after aclose() should raise a clear error."""
+        await sdk_client.aclose()
+        with pytest.raises(RuntimeError, match="SDK has been closed"):
+            await sdk_client.list_servers()

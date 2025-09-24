@@ -34,12 +34,40 @@ class BarndoorConfig(BaseModel):
     class Config:
         frozen = True
 
+
+    # Backwards-compatible uppercase aliases (read-only)
+    @property
+    def AUTH_DOMAIN(self) -> str:
+        return self.auth_domain
+
+    @property
+    def API_AUDIENCE(self) -> str:
+        return self.api_audience
+
+    @property
+    def PROMPT_FOR_LOGIN(self) -> bool:
+        return self.prompt_for_login
+
     @classmethod
     def from_environment(cls, token: str | None = None) -> BarndoorConfig:
         """Create configuration from environment variables and optional JWT token."""
 
         # Load environment variables
-        env_mode = (os.getenv("MODE") or os.getenv("BARNDOOR_ENV", "production")).lower()
+        # Determine environment mode with pragmatic precedence:
+        # - If BARNDOOR_ENV explicitly sets production/prod, prefer it over MODE
+        # - Else prefer MODE when set
+        # - Else fall back to BARNDOOR_ENV when set
+        # - Else default to production
+        be = os.getenv("BARNDOOR_ENV")
+        md = os.getenv("MODE")
+        if be and be.strip().lower() in ("production", "prod"):
+            env_mode = be.strip().lower()
+        elif md:
+            env_mode = md.strip().lower()
+        elif be:
+            env_mode = be.strip().lower()
+        else:
+            env_mode = "production"
 
         # Base configuration from environment
         config_data = {
@@ -73,24 +101,17 @@ class BarndoorConfig(BaseModel):
                 }
             )
         else:  # production
-            config_data.update(
-                {
-                    "api_base_url": os.getenv(
-                        "BARNDOOR_API", "https://{organization_id}.mcp.barndoor.ai"
-                    ),
-                    "mcp_base_url": os.getenv(
-                        "BARNDOOR_URL", "https://{organization_id}.mcp.barndoor.ai"
-                    ),
-                }
-            )
+            config_data.update({
+                "api_base_url": os.getenv("BARNDOOR_API", "https://{organization_id}.mcp.barndoor.ai"),
+                "mcp_base_url": os.getenv("BARNDOOR_URL", "https://{organization_id}.mcp.barndoor.ai"),
+            })
 
         # Apply JWT-based overrides if token provided
         if token:
             try:
                 claims = jwt.get_unverified_claims(token)
 
-                # Look for organization name in user claims first,
-                # then at top level, then fallback to org_id
+                # Look for organization name in user claims first, then at top level, then fallback to org_id
                 org_name = None
                 if user_claims := claims.get("user"):
                     org_name = user_claims.get("organization_name")
