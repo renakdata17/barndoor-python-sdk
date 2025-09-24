@@ -16,8 +16,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          enable_cache: true
-          version: 0.7.2
+          enable-cache: true
+          version: 0.8.22
 
       - name: Sync deps (dev)
         run: uv sync --frozen --all-extras --dev --python 3.13
@@ -45,8 +45,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          enable_cache: true
-          version: 0.7.2
+          enable-cache: true
+          version: 0.8.22
 
       - name: Sync deps (dev)
         run: uv sync --frozen --all-extras --dev --python ${{ matrix.python-version }}
