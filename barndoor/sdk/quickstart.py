@@ -82,7 +82,8 @@ async def login_interactive(
 
     # 1. try cached token with refresh first ----------------------------------
     token_data = None
-    if await is_token_active_with_refresh(api_base_url or cfg.api_base_url):
+    base_url = api_base_url or getattr(cfg, "api_base_url", None)
+    if base_url and await is_token_active_with_refresh(base_url):
         logger.info("Using cached/refreshed valid token")
         token_data = load_user_token()
     else:
