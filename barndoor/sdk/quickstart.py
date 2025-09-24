@@ -80,18 +80,19 @@ async def login_interactive(
     client_secret = client_secret or cfg.client_secret
     audience = audience or cfg.api_audience  # Use config value
 
-    if not client_id or not client_secret:
-        raise RuntimeError(
-            "AGENT_CLIENT_ID / AGENT_CLIENT_SECRET not set – "
-            "create a .env file or export in the shell"
-        )
-
-    # 1. try cached token with refresh ----------------------------------
+    # 1. try cached token with refresh first ----------------------------------
     token_data = None
     if await is_token_active_with_refresh(api_base_url or cfg.api_base_url):
         logger.info("Using cached/refreshed valid token")
         token_data = load_user_token()
     else:
+        # Only require client credentials if we need to perform OAuth
+        if not client_id or not client_secret:
+            raise RuntimeError(
+                "AGENT_CLIENT_ID / AGENT_CLIENT_SECRET not set – "
+                "create a .env file or export in the shell"
+            )
+
         logger.info("No valid cached token, starting OAuth flow")
         # 2. if none – run interactive PKCE flow --------------------------
         redirect_uri, waiter = start_local_callback_server(port=port)
