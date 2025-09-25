@@ -39,3 +39,8 @@ internal_dev_env_setup.*
 # OS / misc
 .DS_Store
 Thumbs.db
+
+
+# Local utility scripts / dumps
+sdk_dump.txt
+dump_sdk_files.py
