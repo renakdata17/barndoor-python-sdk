@@ -121,6 +121,17 @@ class ServerNotFoundError(BarndoorError):
         super().__init__(message)
 
 
+class OAuthError(AuthenticationError):
+    """Raised when OAuth authentication fails.
+
+    This covers various OAuth-related failures including
+    invalid authorization codes, expired tokens, or
+    misconfigured OAuth applications.
+    """
+
+    pass
+
+
 class ConfigurationError(BarndoorError):
     """Raised when there's an issue with SDK configuration.
 
@@ -140,17 +151,6 @@ class TimeoutError(BarndoorError):
     This can occur during HTTP requests, authentication flows,
     or other time-sensitive operations that exceed their
     configured timeout limits.
-    """
-
-    pass
-
-
-class OAuthError(BarndoorError):
-    """Raised when OAuth authentication fails.
-
-    This covers various OAuth-related failures including
-    invalid authorization codes, expired tokens, or
-    misconfigured OAuth applications.
     """
 
     pass

@@ -178,25 +178,39 @@ class BarndoorSDK:
         try:
             servers: list[ServerSummary] = []
 
-            page = 1
+            # First request without params for backward compatibility
+            first_resp = await self._req("GET", "/servers")
+
+            # Legacy shape: list of servers
+            if isinstance(first_resp, list):
+                servers.extend(ServerSummary.model_validate(o) for o in first_resp)
+                logger.info(f"Retrieved {len(servers)} servers")
+                return servers
+
+            # Paginated shape
             try:
                 limit = int(os.getenv("BARNDOOR_PAGE_SIZE", "100"))
             except Exception:
                 limit = 100
             max_pages = 100  # guard against infinite loops
 
-            pages_visited = 0
-            while True:
+            # Process the first page (already fetched)
+            server_data = first_resp.get("data", [])
+            servers.extend(ServerSummary.model_validate(o) for o in server_data)
+            next_page = first_resp.get("next_page")
+
+            pages_visited = 1
+            page = int(next_page) if next_page else None
+
+            while page:
                 params = {"page": page, "limit": limit}
                 resp = await self._req("GET", "/servers", params=params)
 
-                # Strictly require the new paginated shape
-                server_data = resp["data"]
+                server_data = resp.get("data", [])
                 servers.extend(ServerSummary.model_validate(o) for o in server_data)
 
                 pages_visited += 1
                 next_page = resp.get("next_page")
-
                 if not next_page:
                     break
                 if pages_visited >= max_pages:

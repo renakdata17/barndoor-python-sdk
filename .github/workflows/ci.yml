@@ -12,12 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          enable_cache: true
-          version: 0.7.2
+          enable-cache: true
+          version: 0.8.22
 
       - name: Sync deps (dev)
         run: uv sync --frozen --all-extras --dev --python 3.13
@@ -27,7 +29,7 @@ jobs:
         with:
           extra_args: --all-files --verbose
         env:
-          SKIP: no-commit-to-branch
+          SKIP: ${{ github.event_name == 'pull_request' && 'no-commit-to-branch,uv-lock-check' || 'no-commit-to-branch' }}
 
   test:
     runs-on: ubuntu-latest
@@ -45,8 +47,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          enable_cache: true
-          version: 0.7.2
+          enable-cache: true
+          version: 0.8.22
 
       - name: Sync deps (dev)
         run: uv sync --frozen --all-extras --dev --python ${{ matrix.python-version }}
