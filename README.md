@@ -30,7 +30,7 @@ This architecture provides secure, managed access to external services without h
 ## Installation
 
 ```bash
-pip install barndoor  # coming soon – for now use an editable install
+pip install barndoor
 # or, inside this repo
 pip install -e barndoor[dev]
 ```
@@ -67,15 +67,6 @@ uv run python -m barndoor.sdk.cli_login
 
 # 7) kick off the Notion sample agent
 uv run python examples/sample_notion_agent.py
-```
-
-### Install pre-commit hooks
-
-Install the git hooks once and run them locally (CI runs the same hooks):
-
-```bash
-uv run pre-commit install
-uv run pre-commit run --all-files
 ```
 
 **Note:** The OAuth default callback uses port 52765. Make sure this is registered in your Barndoor Agent as:

@@ -29,7 +29,7 @@ jobs:
         with:
           extra_args: --all-files --verbose
         env:
-          SKIP: ${{ github.event_name == 'pull_request' && 'no-commit-to-branch,uv-lock-check' || 'no-commit-to-branch' }}
+          SKIP: no-commit-to-branch
 
   test:
     runs-on: ubuntu-latest
