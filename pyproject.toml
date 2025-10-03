@@ -1,69 +1,19 @@
 [project]
 name = "barndoor"
 dynamic = ["version"]
-description = "AI-powered sales intelligence built on BDAI"
+description = "Official Python SDK for the Barndoor API."
+authors = [{ name = "Barndoor AI, Inc." }]
+keywords = ["barndoor", "mcp", "ai", "sdk"]
+license = { text = "MIT" }
+
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
 dependencies = [
-    "aiohttp>=3.11.12",
-    "alembic>=1.14.1",
-    "asyncpg>=0.30.0",
-    "auth0-python>=4.4.1",
-    "authlib>=1.0.0",
-    "backoff>=2.2.1",
-    "boto3>=1.36.14",
-    "click>=8.1.8",
-    "cerbos>=0.12.0",
-    "cerbos-sqlalchemy>=0.3.2",
-    "copilotkit>=0.1.39",
-    "faker>=24.4.0",
-    "fastapi[standard]>=0.112.2",
-    "google-api-python-client>=2.106.0",
-    "google-auth-oauthlib>=1.2.1",
     "httpx[http2]>=0.27.2",
-    "langchain",
-    "langchain-anthropic",
-    "langchain-community",
-    "langchain-core",
-    "langchain-openai",
-    "langgraph-cli",
-    "langgraph>=0.5.3",
-    "langchain-mcp-adapters",
-    "llama-index",  # meta package with core + common extras
-    "llama-index-tools-mcp",
-    "composio-langgraph>=0.1.0",
-    "nest-asyncio>=1.6.0",
-    "notion-client>=2.3.0",
-    "openai>=1.61.1",
-    "opensearch-py>=2.4.2",
-    "pip>=22.0.0",
-    "psycopg2-binary>=2.9.10",
     "pydantic>=2.10.6",
-    "pydantic-settings>=2.7.1",
     "python-dotenv>=1.0.0",
     "python-jose[cryptography]>=3.3.0",
-    "python-multipart>=0.0.20",
-    "requests>=2.32.3",
-    "requests-aws4auth>=1.2.3",
-    "simple-salesforce>=1.12.6",
-    "slack-bolt>=1.22.0",
-    "slack-sdk>=3.34.0",
-    "sqlalchemy[asyncio]>=2.0.38",
-    "starlette>=0.45.3",
-    "tenacity>=9.0.0",
     "typing-extensions>=4.12.2",
-    "uvicorn>=0.34.0",
-    "wheel>=0.37.0",
-    "dataclasses-json>=0.6.7",
-    "opentelemetry-sdk>=1.32.1",
-    "opentelemetry-exporter-otlp-proto-grpc>=1.32.1",
-    "opentelemetry-instrumentation-fastapi>=0.53b1",
-    "opentelemetry-instrumentation-requests>=0.53b1",
-    "opentelemetry-instrumentation-httpx>=0.53b1",
-    "opentelemetry-instrumentation-logging>=0.53b1",
-    "python-json-logger>=3.3.0",
-    "opentelemetry-distro[otlp]>=0.53b1",
-    "opentelemetry-instrumentation>=0.53b1",
 ]
 
 [project.scripts]
@@ -73,7 +23,15 @@ barndoor-login = "barndoor.sdk.cli_login:main"
 examples = [
     "crewai>=0.30.0",
     "crewai_tools>=0.1.0",
+    "langchain-openai",
+    "langchain-mcp-adapters",
+    "langgraph>=0.5.3",
+    "llama-index",
+    "llama-index-tools-mcp",
+    "openai>=1.61.1",
 ]
+
+
 
 [tool.uv]
 dev-dependencies = [

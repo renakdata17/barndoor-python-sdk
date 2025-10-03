@@ -18,6 +18,7 @@ from barndoor.sdk.config import get_static_config
 from .auth import (
     build_authorization_url,
     exchange_code_for_token_backend,
+    get_pending_oauth_state,
     start_local_callback_server,
 )
 from .auth_store import clear_cached_token, is_token_active, save_user_token
@@ -82,9 +83,14 @@ async def interactive_login(
     webbrowser.open(auth_url)
 
     try:
-        code, _state = await waiter
+        code, returned_state = await waiter
     except Exception as e:
         raise RuntimeError(f"Failed to receive callback: {e}")
+
+    # Validate OAuth state (if available) to mitigate CSRF
+    expected_state = get_pending_oauth_state()
+    if expected_state is not None and returned_state != expected_state:
+        raise RuntimeError("OAuth state mismatch; possible CSRF attempt")
 
     # Exchange code for token
     token = exchange_code_for_token_backend(

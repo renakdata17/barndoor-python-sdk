@@ -344,7 +344,12 @@ class BarndoorSDK:
         webbrowser.open(auth_url)
         print("Please complete login in your browser…")
 
-        code, _state = await waiter
+        code, returned_state = await waiter
+
+        # Validate OAuth state (if available) to mitigate CSRF
+        expected_state = getattr(bda_auth, "get_pending_oauth_state", lambda: None)()
+        if expected_state is not None and returned_state != expected_state:
+            raise RuntimeError("OAuth state mismatch; possible CSRF attempt")
 
         # Hybrid flow – exchange code with client secret (no PKCE).
         token = bda_auth.exchange_code_for_token_backend(

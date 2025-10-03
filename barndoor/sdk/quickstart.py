@@ -30,6 +30,7 @@ from uuid import uuid4
 from barndoor.sdk.auth import (
     build_authorization_url,
     exchange_code_for_token_backend,
+    get_pending_oauth_state,
     start_local_callback_server,
 )
 
@@ -107,7 +108,11 @@ async def login_interactive(
 
         webbrowser.open(auth_url)
         logging.getLogger(__name__).info("Please complete login in your browser…")
-        code, _ = await waiter
+        code, returned_state = await waiter
+        # Validate OAuth state (if available) to mitigate CSRF
+        expected_state = get_pending_oauth_state()
+        if expected_state is not None and returned_state != expected_state:
+            raise RuntimeError("OAuth state mismatch; possible CSRF attempt")
         token_data = exchange_code_for_token_backend(
             domain=auth_domain,
             client_id=client_id,
