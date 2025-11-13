@@ -47,6 +47,18 @@ class BarndoorConfig(BaseModel):
     def PROMPT_FOR_LOGIN(self) -> bool:
         return self.prompt_for_login
 
+    @property
+    def BARNDOOR_API(self) -> str:
+        return self.api_base_url
+
+    @property
+    def AGENT_CLIENT_ID(self) -> str:
+        return self.client_id
+
+    @property
+    def AGENT_CLIENT_SECRET(self) -> str:
+        return self.client_secret
+
     @classmethod
     def from_environment(cls, token: str | None = None) -> BarndoorConfig:
         """Create configuration from environment variables and optional JWT token."""

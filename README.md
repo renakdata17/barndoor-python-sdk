@@ -69,9 +69,10 @@ uv run python -m barndoor.sdk.cli_login
 uv run python examples/sample_notion_agent.py
 ```
 
-**Note:** The OAuth default callback uses port 52765. Make sure this is registered in your Barndoor Agent as:
+**Note:** The OAuth default callback uses port 52765. Make sure to register this callback in your Barndoor Agent configuration. As some machines are configured to automatically resolve `localhost` to `127.0.0.1`, we recommend having two callback entries:
 ```
 http://localhost:52765/cb
+http://127.0.0.1:52765/cb
 ```
 
 ### Using a custom OAuth callback port
@@ -81,6 +82,7 @@ If port `52765` is blocked (or you prefer another), you can:
 1. **Register the new callback URL** in your Barndoor Agent application, e.g.
    ```
    http://localhost:60000/cb
+   http://127.0.0.1:60000/cb
    ```
 2. **Run the login helper with the matching port**
    ```bash
