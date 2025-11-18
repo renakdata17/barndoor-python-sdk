@@ -33,7 +33,7 @@ async def interactive_login(
     client_id: str,
     client_secret: str,
     audience: str,
-    api_base_url: str = "https://{organization_id}.mcp.barndoor.ai",
+    base_url: str = "https://{organization_id}.mcp.barndoor.ai",
     port: int = 52765,
 ) -> str:
     """Perform interactive OAuth login flow.
@@ -51,7 +51,7 @@ async def interactive_login(
         OAuth client secret
     audience : str
         API audience identifier
-    api_base_url : str, optional
+    base_url : str, optional
         Base URL of the Barndoor API. Default is "https://{organization_id}.mcp.barndoor.ai"
     port : int, optional
         Local port for OAuth callback. Default is 8765
@@ -121,7 +121,7 @@ async def main():
         OAuth client ID (required)
     AGENT_CLIENT_SECRET : str
         OAuth client secret (required)
-    BARNDOOR_API : str
+    BARNDOOR_URL : str
         API base URL (defaults to "https://{organization_id}.mcp.barndoor.ai")
 
     Exit Codes
@@ -137,9 +137,9 @@ async def main():
     # Check for existing valid token
     cfg = get_static_config()
 
-    api_base_url = cfg.BARNDOOR_API
+    base_url = cfg.base_url
 
-    if await is_token_active(api_base_url):
+    if await is_token_active(base_url):
         logging.getLogger(__name__).info("✓ Valid token already exists in ~/.barndoor/token.json")
         return
 
@@ -166,7 +166,7 @@ async def main():
             client_id=client_id,
             client_secret=client_secret,
             audience=audience,
-            api_base_url=api_base_url,
+            base_url=base_url,
         )
 
         # Save the token

@@ -129,8 +129,8 @@ def verify_jwt_local(token: str, auth_domain: str, audience: str) -> bool | None
 class TokenManager:
     """Manages token storage, validation, and refresh."""
 
-    def __init__(self, api_base_url: str):
-        self.api_base_url = api_base_url.rstrip("/")
+    def __init__(self, base_url: str):
+        self.base_url = base_url.rstrip("/")
 
     async def get_valid_token(self) -> str:
         """Get a valid token, refreshing if necessary."""
@@ -340,7 +340,7 @@ def clear_cached_token() -> None:
             logger.warning(f"Failed to clear cached token: {e}")
 
 
-async def is_token_active(api_base_url: str) -> bool:
+async def is_token_active(base_url: str) -> bool:
     """Check if cached token is active without attempting refresh."""
     from .config import get_static_config
 
@@ -372,7 +372,7 @@ async def is_token_active(api_base_url: str) -> bool:
         return False
 
 
-async def is_token_active_with_refresh(api_base_url: str) -> bool:
+async def is_token_active_with_refresh(base_url: str) -> bool:
     """Check if cached token is active, attempting refresh if needed."""
     from .auth import refresh_access_token
     from .config import get_static_config
@@ -396,7 +396,7 @@ async def is_token_active_with_refresh(api_base_url: str) -> bool:
         cfg = get_static_config()
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{api_base_url}/identity/token",
+                f"{base_url}/api/identity/token",
                 headers={"Authorization": f"Bearer {access_token}"},
                 timeout=10.0,
             )
@@ -430,14 +430,14 @@ async def is_token_active_with_refresh(api_base_url: str) -> bool:
         return False
 
 
-async def validate_token(token: str, api_base_url: str) -> dict:
+async def validate_token(token: str, base_url: str) -> dict:
     """Validate a token using fast-path local verification with remote fallback.
 
     Parameters
     ----------
     token : str
         The JWT token to validate
-    api_base_url : str
+    base_url : str
         Base URL of the Barndoor API (unused, kept for compatibility)
 
     Returns

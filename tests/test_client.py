@@ -32,7 +32,7 @@ class TestBarndoorSDK:
             assert len(servers) == 1
             assert isinstance(servers[0], ServerSummary)
             assert servers[0].slug == "test-server"
-            mock_req.assert_called_once_with("GET", "/servers")
+            mock_req.assert_called_once_with("GET", "/api/servers")
 
     @pytest.mark.asyncio
     async def test_list_servers_http_error(self, sdk_client):

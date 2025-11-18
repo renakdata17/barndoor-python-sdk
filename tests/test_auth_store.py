@@ -102,8 +102,9 @@ class TestTokenManager:
 
     def test_init(self):
         """Test TokenManager initialization."""
-        manager = TokenManager("https://api.test.com/")
-        assert manager.api_base_url == "https://api.test.com"
+        # Test initialization
+        manager = TokenManager("https://api.test.com")
+        assert manager.base_url == "https://api.test.com"
 
     @pytest.mark.asyncio
     async def test_get_valid_token_no_token(self, temp_token_dir):

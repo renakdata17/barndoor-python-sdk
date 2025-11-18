@@ -20,8 +20,7 @@ class BarndoorConfig(BaseModel):
     api_audience: str = Field(default="https://barndoor.ai/")
 
     # API endpoints (templates support {organization_id})
-    api_base_url: str = Field(default="https://{organization_id}.mcp.barndoor.ai")
-    mcp_base_url: str = Field(default="https://{organization_id}.mcp.barndoor.ai")
+    base_url: str = Field(default="https://{organization_id}.mcp.barndoor.ai")
 
     # Runtime settings
     environment: str = Field(default="production")
@@ -46,10 +45,6 @@ class BarndoorConfig(BaseModel):
     @property
     def PROMPT_FOR_LOGIN(self) -> bool:
         return self.prompt_for_login
-
-    @property
-    def BARNDOOR_API(self) -> str:
-        return self.api_base_url
 
     @property
     def AGENT_CLIENT_ID(self) -> str:
@@ -96,17 +91,13 @@ class BarndoorConfig(BaseModel):
             config_data.update(
                 {
                     "auth_domain": _get_env_var(["AUTH_DOMAIN"], "localhost:3001"),
-                    "api_base_url": os.getenv("BARNDOOR_API", "http://localhost:8000"),
-                    "mcp_base_url": os.getenv("BARNDOOR_URL", "http://localhost:8000"),
+                    "base_url": os.getenv("BARNDOOR_URL", "http://localhost:8000"),
                 }
             )
         elif env_mode in ("development", "dev"):
             config_data.update(
                 {
-                    "api_base_url": os.getenv(
-                        "BARNDOOR_API", "https://{organization_id}.mcp.barndoordev.com"
-                    ),
-                    "mcp_base_url": os.getenv(
+                    "base_url": os.getenv(
                         "BARNDOOR_URL", "https://{organization_id}.mcp.barndoordev.com"
                     ),
                 }
@@ -114,10 +105,7 @@ class BarndoorConfig(BaseModel):
         else:  # production
             config_data.update(
                 {
-                    "api_base_url": os.getenv(
-                        "BARNDOOR_API", "https://{organization_id}.mcp.barndoor.ai"
-                    ),
-                    "mcp_base_url": os.getenv(
+                    "base_url": os.getenv(
                         "BARNDOOR_URL", "https://{organization_id}.mcp.barndoor.ai"
                     ),
                 }
@@ -141,10 +129,7 @@ class BarndoorConfig(BaseModel):
                 if org_name:
                     config_data["organization_id"] = org_name
                     # Resolve URL templates
-                    config_data["api_base_url"] = config_data["api_base_url"].format(
-                        organization_id=org_name
-                    )
-                    config_data["mcp_base_url"] = config_data["mcp_base_url"].format(
+                    config_data["base_url"] = config_data["base_url"].format(
                         organization_id=org_name
                     )
             except Exception:

@@ -66,7 +66,7 @@ async def login_interactive(
     client_id: str | None = None,
     client_secret: str | None = None,
     audience: str | None = None,
-    api_base_url: str | None = None,
+    base_url: str | None = None,
     port: int = 52765,
 ) -> BarndoorSDK:
     """Return an initialized BarndoorSDK after ensuring valid user JWT."""
@@ -83,7 +83,7 @@ async def login_interactive(
 
     # 1. try cached token with refresh first ----------------------------------
     token_data = None
-    base_url = api_base_url or getattr(cfg, "api_base_url", None)
+    base_url = base_url or getattr(cfg, "base_url", None)
     if base_url and await is_token_active_with_refresh(base_url):
         logger.info("Using cached/refreshed valid token")
         token_data = load_user_token()
@@ -129,10 +129,10 @@ async def login_interactive(
     from barndoor.sdk.config import get_dynamic_config
 
     cfg_dyn = get_dynamic_config(access_token)
-    api_base_url = api_base_url or cfg_dyn.api_base_url
+    base_url = base_url or cfg_dyn.base_url
 
     # 4. create SDK
-    sdk = BarndoorSDK(api_base_url, barndoor_token=access_token, validate_token_on_init=False)
+    sdk = BarndoorSDK(base_url, barndoor_token=access_token, validate_token_on_init=False)
     logger.info("Login completed successfully")
     return sdk
 

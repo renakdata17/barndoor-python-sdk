@@ -8,7 +8,7 @@ from barndoor.sdk.client import BarndoorSDK
 @pytest.mark.asyncio
 async def test_list_servers_single_page(monkeypatch):
     sdk = BarndoorSDK(
-        api_base_url="https://api.test.com",
+        base_url="https://api.test.com",
         barndoor_token="aaa.bbb.ccc",
         validate_token_on_init=False,
     )
@@ -36,7 +36,7 @@ async def test_list_servers_single_page(monkeypatch):
 @pytest.mark.asyncio
 async def test_list_servers_multi_page(monkeypatch):
     sdk = BarndoorSDK(
-        api_base_url="https://api.test.com",
+        base_url="https://api.test.com",
         barndoor_token="aaa.bbb.ccc",
         validate_token_on_init=False,
     )

@@ -31,7 +31,7 @@ def mock_config():
 def sdk_client(mock_token):
     """SDK client with mocked dependencies."""
     return BarndoorSDK(
-        api_base_url="https://test.barndoor.ai",
+        base_url="https://test.barndoor.ai",
         barndoor_token=mock_token,
         validate_token_on_init=False,
     )
@@ -50,7 +50,7 @@ def mock_httpx_client():
 def sdk_with_mocked_http(mock_token):
     """SDK client ready for tests that patch the internal HTTP request."""
     return BarndoorSDK(
-        api_base_url="https://api.test.com",
+        base_url="https://api.test.com",
         barndoor_token=mock_token,
         validate_token_on_init=False,
     )

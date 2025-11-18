@@ -35,7 +35,7 @@ class BarndoorSDK:
 
     Parameters
     ----------
-    api_base_url : str
+    base_url : str
         Base URL of the Barndoor API (e.g., "https://api.barndoor.host")
     barndoor_token : str, optional
         User JWT token. If not provided, will attempt to load from local cache
@@ -50,7 +50,7 @@ class BarndoorSDK:
 
     def __init__(
         self,
-        api_base_url: str,
+        base_url: str,
         barndoor_token: str | None = None,
         validate_token_on_init: bool = True,
         timeout: float = 30.0,
@@ -59,7 +59,7 @@ class BarndoorSDK:
         from .auth_store import load_user_token
 
         # Validate inputs
-        self.base = validate_url(api_base_url, "API base URL").rstrip("/")
+        self.base = validate_url(base_url, "API base URL").rstrip("/")
 
         token = barndoor_token or load_user_token()
         if not token:
@@ -117,7 +117,7 @@ class BarndoorSDK:
         """Validate the cached token by making a test API call.
 
         Checks if the current token is still valid by calling the
-        /identity/token endpoint.
+        /api/identity/token endpoint.
 
         Returns
         -------
@@ -179,7 +179,7 @@ class BarndoorSDK:
             servers: list[ServerSummary] = []
 
             # First request without params for backward compatibility
-            first_resp = await self._req("GET", "/servers")
+            first_resp = await self._req("GET", "/api/servers")
 
             # Legacy shape: list of servers
             if isinstance(first_resp, list):
@@ -204,7 +204,7 @@ class BarndoorSDK:
 
             while page:
                 params = {"page": page, "limit": limit}
-                resp = await self._req("GET", "/servers", params=params)
+                resp = await self._req("GET", "/api/servers", params=params)
 
                 server_data = resp.get("data", [])
                 servers.extend(ServerSummary.model_validate(o) for o in server_data)
@@ -243,7 +243,7 @@ class BarndoorSDK:
         try:
             response = await self._req(
                 "POST",
-                f"/servers/{server_id}/connect",
+                f"/api/servers/{server_id}/connect",
                 params=params,
                 json={},
             )
@@ -261,7 +261,7 @@ class BarndoorSDK:
         server_id = validate_server_id(server_id)
 
         logger.debug(f"Checking connection status for server {server_id}")
-        response = await self._req("GET", f"/servers/{server_id}/connection")
+        response = await self._req("GET", f"/api/servers/{server_id}/connection")
         return response["status"]
 
     async def get_server(self, server_id: str) -> ServerDetail:
@@ -269,7 +269,7 @@ class BarndoorSDK:
         server_id = validate_server_id(server_id)
 
         logger.debug(f"Fetching server details for {server_id}")
-        response = await self._req("GET", f"/servers/{server_id}")
+        response = await self._req("GET", f"/api/servers/{server_id}")
 
         from .models import ServerDetail
 
@@ -285,7 +285,7 @@ class BarndoorSDK:
         client_secret: str,
         audience: str,
         *,
-        api_base_url: str = "https://{organization_id}.mcp.barndoor.ai",
+        base_url: str = "https://{organization_id}.mcp.barndoor.ai",
         port: int = 52765,
     ) -> BarndoorSDK:
         """Perform interactive login and return an initialized SDK instance.
@@ -304,7 +304,7 @@ class BarndoorSDK:
             OAuth client secret
         audience : str
             API audience identifier
-        api_base_url : str, optional
+        base_url : str, optional
             Base URL of the Barndoor API. Default is "https://{organization_id}.mcp.barndoor.ai"
         port : int, optional
             Local port for OAuth callback. Default is 8765
@@ -360,7 +360,7 @@ class BarndoorSDK:
             redirect_uri=redirect_uri,
         )
 
-        return cls(api_base_url, barndoor_token=token)
+        return cls(base_url, barndoor_token=token)
 
     async def ensure_server_connected(
         self,

@@ -178,7 +178,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /servers/{server_id}:
+  /api/servers/{server_id}:
     get:
       summary: Get server details
       description: |
@@ -219,7 +219,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /servers/{server_id}/connect:
+  /api/servers/{server_id}/connect:
     post:
       summary: Initiate OAuth connection
       description: |
@@ -281,7 +281,7 @@ paths:
                 error: "OAuthConfigurationError"
                 message: "Server is missing OAuth configuration. Ask an admin to configure credentials before initiating a connection."
 
-  /servers/{server_id}/connection:
+  /api/servers/{server_id}/connection:
     get:
       summary: Get connection status
       description: |
@@ -377,7 +377,7 @@ paths:
 
         ## Authentication Flow
 
-        1. User must first connect to the server via `/servers/{server_id}/connect`
+        1. User must first connect to the server via `/api/servers/{server_id}/connect`
         2. Complete OAuth flow for the third-party service
         3. Use this endpoint to proxy MCP requests with automatic credential injection
 
@@ -552,7 +552,7 @@ paths:
 
         ## Authentication Flow
 
-        1. User must first connect to the server via `/servers/{server_id}/connect`
+        1. User must first connect to the server via `/api/servers/{server_id}/connect`
         2. Complete OAuth flow for the third-party service
         3. Use this endpoint for real-time event streaming with automatic credential injection
 
