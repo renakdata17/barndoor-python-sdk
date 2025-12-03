@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from barndoor.sdk.models import ServerSummary
+from barndoor.sdk.exceptions import HTTPError
+from barndoor.sdk.models import ServerDetail, ServerSummary
 from barndoor.sdk.quickstart import (
     ensure_server_connected,
     login_interactive,
@@ -99,7 +100,9 @@ class TestEnsureServerConnected:
     @pytest.mark.asyncio
     async def test_server_already_connected(self, sdk_with_mocked_http, mock_server_list):
         """Test with server already connected."""
-        sdk_with_mocked_http._http.request = AsyncMock(return_value=mock_server_list)
+        # Mock get_server_by_slug to return a connected server
+        mock_server = ServerDetail.model_validate(mock_server_list[0])  # salesforce
+        sdk_with_mocked_http.get_server_by_slug = AsyncMock(return_value=mock_server)
 
         # Should complete without error
         await ensure_server_connected(sdk_with_mocked_http, "salesforce")
@@ -107,7 +110,17 @@ class TestEnsureServerConnected:
     @pytest.mark.asyncio
     async def test_server_not_found(self, sdk_with_mocked_http, mock_server_list):
         """Test with non-existent server."""
-        sdk_with_mocked_http._http.request = AsyncMock(return_value=mock_server_list)
+        # Mock get_server_by_slug to raise 404, then fall back to list_servers
+        mock_error = HTTPError(
+            status_code=404,
+            message="Server not found",
+            response_body='{"detail": "MCP server with slug \'nonexistent\' not found"}',
+        )
+        sdk_with_mocked_http.get_server_by_slug = AsyncMock(side_effect=mock_error)
+
+        # Fallback to list_servers
+        servers = [ServerSummary.model_validate(s) for s in mock_server_list]
+        sdk_with_mocked_http.list_servers = AsyncMock(return_value=servers)
 
         with pytest.raises(ValueError, match="Server 'nonexistent' not found"):
             await ensure_server_connected(sdk_with_mocked_http, "nonexistent")
@@ -115,17 +128,23 @@ class TestEnsureServerConnected:
     @pytest.mark.asyncio
     async def test_server_needs_connection(self, sdk_with_mocked_http, mock_server_list):
         """Test with server that needs connection."""
-        # Build server objects directly to avoid ambiguity in HTTP mocking
-        servers = [ServerSummary.model_validate(s) for s in mock_server_list]
+        # Mock get_server_by_slug to return a server that needs connection
+        mock_server = ServerDetail.model_validate(
+            mock_server_list[1]
+        )  # notion (available, not connected)
+        sdk_with_mocked_http.get_server_by_slug = AsyncMock(return_value=mock_server)
 
-        # Patch list_servers to return our objects; then mock only the subsequent HTTP calls
-        sdk_with_mocked_http.list_servers = AsyncMock(return_value=servers)
+        # Mock subsequent HTTP calls for connection flow
         sdk_with_mocked_http._http.request = AsyncMock(
             side_effect=[
                 {"auth_url": "https://oauth.test.com"},  # initiate_connection call
                 {"status": "connected"},  # get_connection_status call
             ]
         )
+
+        # Mock list_servers for the internal ensure_server_connected call
+        servers = [ServerSummary.model_validate(s) for s in mock_server_list]
+        sdk_with_mocked_http.list_servers = AsyncMock(return_value=servers)
 
         with patch("webbrowser.open") as mock_browser:
             await ensure_server_connected(sdk_with_mocked_http, "notion")
@@ -140,7 +159,7 @@ class TestMakeMCPConnectionParams:
     @pytest.mark.asyncio
     async def test_make_connection_params_uses_proxy_url(self, sdk_with_mocked_http):
         """make_mcp_connection_params should use proxy_url provided by registry."""
-        mock_server_list = [
+        mock_server = ServerDetail.model_validate(
             {
                 "id": "server-1",
                 "name": "Salesforce",
@@ -149,9 +168,9 @@ class TestMakeMCPConnectionParams:
                 "connection_status": "connected",
                 "proxy_url": "https://acme.mcp.barndoor.ai/mcp/salesforce",
             }
-        ]
+        )
 
-        sdk_with_mocked_http._http.request = AsyncMock(return_value=mock_server_list)
+        sdk_with_mocked_http.get_server_by_slug = AsyncMock(return_value=mock_server)
 
         params, public_url = await make_mcp_connection_params(sdk_with_mocked_http, "salesforce")
 
@@ -163,7 +182,13 @@ class TestMakeMCPConnectionParams:
     @pytest.mark.asyncio
     async def test_make_connection_params_server_not_found(self, sdk_with_mocked_http):
         """Test connection params with non-existent server."""
-        sdk_with_mocked_http._http.request = AsyncMock(return_value=[])
+        # Mock HTTPError with 404 status code
+        mock_error = HTTPError(
+            status_code=404,
+            message="Server not found",
+            response_body='{"detail": "MCP server with slug \'nonexistent\' not found"}',
+        )
+        sdk_with_mocked_http.get_server_by_slug = AsyncMock(side_effect=mock_error)
 
         with pytest.raises(ValueError, match="Server 'nonexistent' not found"):
             await make_mcp_connection_params(sdk_with_mocked_http, "nonexistent")

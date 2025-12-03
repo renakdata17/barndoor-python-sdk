@@ -151,8 +151,23 @@ async def ensure_server_connected(
     """
     logger.info(f"Ensuring {server_identifier} server is connected")
 
-    servers = await sdk.list_servers()
-    server = next((s for s in servers if s.slug == server_identifier), None)
+    # Try to get server by slug first (more efficient)
+    server = None
+    try:
+        server = await sdk.get_server_by_slug(server_identifier)
+    except Exception:
+        # If slug lookup fails, fall back to searching the list
+        # This handles cases where server_identifier might be a provider name
+        servers = await sdk.list_servers()
+        server = next(
+            (
+                s
+                for s in servers
+                if s.slug == server_identifier
+                or (getattr(s, "provider", None) or "").lower() == server_identifier.lower()
+            ),
+            None,
+        )
 
     if not server:
         logger.error(f"Server '{server_identifier}' not found")
@@ -175,22 +190,30 @@ async def make_mcp_connection_params(
     """Return ``(params_dict, public_url)`` where *params_dict* has the keys
 
     ``url``, ``headers`` and (optionally) ``transport`` so that it can be fed
-    directly to whatever framework you’re using (CrewAI, LangChain, custom).
+    directly to whatever framework you're using (CrewAI, LangChain, custom).
 
     The helper hides the rules:
       • If BARNDOOR_ENV is "prod" → build public MCP URL
         otherwise ("dev" or "local") → route through the local proxy.
       • Inject JWT + session-id headers
     """
-    # 1. find the server and use proxy_url provided by registry
-    servers = await sdk.list_servers()
-    server = next((s for s in servers if s.slug == server_slug), None)
-    if not server:
-        raise ValueError(f"Server '{server_slug}' not found for current user")
+    # 1. Find the server by slug using the direct endpoint
+    # This is more efficient than searching through paginated list results,
+    # especially important in performance tests where servers may not be on the first page
+    try:
+        server = await sdk.get_server_by_slug(server_slug)
+    except Exception as e:
+        # Re-raise with a clearer error message
+        from .exceptions import HTTPError
+
+        if isinstance(e, HTTPError) and e.status_code == 404:
+            raise ValueError(f"Server '{server_slug}' not found for current user") from e
+        raise
 
     # Always prefer registry-provided proxy_url; fall back to detailed proxy_url
     url = getattr(server, "proxy_url", None)
     if not url:
+        # Fallback: try getting by ID if proxy_url wasn't in the response
         details = await sdk.get_server(server.id)
         url = getattr(details, "proxy_url", None)
 
