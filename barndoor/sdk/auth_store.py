@@ -31,6 +31,50 @@ logger = get_logger("auth_store")
 
 TOKEN_FILE = Path.home() / ".barndoor" / "token.json"
 
+# Cache for OIDC discovery results
+_oidc_config_cache: dict[str, dict] = {}
+
+
+def get_oidc_config(issuer: str) -> dict:
+    """Fetch and cache OIDC configuration from the issuer's discovery endpoint.
+
+    Parameters
+    ----------
+    issuer : str
+        The OIDC issuer URL (e.g., https://auth.barndoor.ai or
+        https://auth.trial.barndoordev.com/realms/barndoor-local)
+
+    Returns
+    -------
+    dict
+        OIDC configuration containing endpoints like token_endpoint, jwks_uri, etc.
+    """
+    if issuer in _oidc_config_cache:
+        return _oidc_config_cache[issuer]
+
+    # Normalize issuer URL
+    issuer = issuer.rstrip("/")
+    discovery_url = f"{issuer}/.well-known/openid-configuration"
+
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            response = client.get(discovery_url)
+            response.raise_for_status()
+            config = response.json()
+            _oidc_config_cache[issuer] = config
+            logger.debug(f"OIDC discovery successful for {issuer}")
+            return config
+    except Exception as e:
+        logger.warning(f"OIDC discovery failed for {issuer}: {e}")
+        # Return minimal fallback config (Auth0-style paths)
+        return {
+            "issuer": issuer,
+            "token_endpoint": f"{issuer}/oauth/token",
+            "authorization_endpoint": f"{issuer}/authorize",
+            "userinfo_endpoint": f"{issuer}/userinfo",
+            "jwks_uri": f"{issuer}/.well-known/jwks.json",
+        }
+
 
 class _FileLock:
     """Simple file locking context manager for cross-platform compatibility."""
@@ -79,41 +123,60 @@ class _FileLock:
                 # Don't raise - cleanup is best effort
 
 
-@lru_cache(maxsize=1)
-def _get_jwks(auth_domain: str) -> list:
-    """Fetch and cache JWKS from Auth0."""
-    url = f"https://{auth_domain}/.well-known/jwks.json"
+@lru_cache(maxsize=4)
+def _get_jwks(issuer: str) -> list:
+    """Fetch and cache JWKS using OIDC discovery."""
     try:
+        oidc_config = get_oidc_config(issuer)
+        jwks_uri = oidc_config.get("jwks_uri")
+        if not jwks_uri:
+            logger.debug(f"No jwks_uri in OIDC config for {issuer}")
+            return []
+
         # Use a shorter timeout and be more defensive
         with httpx.Client(timeout=3.0) as client:
-            response = client.get(url)
+            response = client.get(jwks_uri)
             response.raise_for_status()
             return response.json().get("keys", [])
     except Exception as e:
-        logger.debug(f"Failed to fetch JWKS from {url}: {e}")
+        logger.debug(f"Failed to fetch JWKS for {issuer}: {e}")
         return []  # Return empty list to fall back to remote validation
 
 
-def verify_jwt_local(token: str, auth_domain: str, audience: str) -> bool | None:
+def verify_jwt_local(token: str, issuer: str, audience: str) -> bool | None:
     """Verify JWT locally using JWKS.
 
-    Returns:
+    Parameters
+    ----------
+    token : str
+        The JWT token to verify
+    issuer : str
+        The OIDC issuer URL (e.g., https://auth.barndoor.ai)
+    audience : str
+        The expected audience claim
+
+    Returns
+    -------
+    bool | None
         True: Token is valid and not expired
         False: Token is expired (but otherwise valid)
         None: Token is invalid or couldn't be verified
     """
     try:
-        keys = _get_jwks(auth_domain)
+        keys = _get_jwks(issuer)
         if not keys:
             logger.debug("No JWKS keys available, falling back to remote validation")
             return None
+
+        # Normalize issuer for comparison (with trailing slash)
+        expected_issuer = issuer.rstrip("/") + "/"
 
         # Verify the token
         jwt.decode(
             token,
             keys,  # jose will pick the right key by 'kid'
             audience=audience,
-            issuer=f"https://{auth_domain}/",
+            issuer=expected_issuer,
             options={"verify_aud": True},
         )
         logger.debug("Token verified locally using JWKS")
@@ -199,6 +262,10 @@ class TokenManager:
 
         cfg = get_static_config()
 
+        # Get token endpoint from OIDC discovery
+        oidc_config = get_oidc_config(cfg.auth_issuer)
+        token_endpoint = oidc_config.get("token_endpoint", f"{cfg.auth_issuer}/oauth/token")
+
         payload = {
             "grant_type": "refresh_token",
             "client_id": cfg.client_id,
@@ -208,9 +275,7 @@ class TokenManager:
 
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"https://{cfg.auth_domain}/oauth/token", json=payload, timeout=15.0
-                )
+                response = await client.post(token_endpoint, data=payload, timeout=15.0)
 
                 if response.status_code == 400:
                     # Bad request - likely invalid refresh token
@@ -252,12 +317,15 @@ class TokenManager:
             logger.error(f"Unexpected error during token refresh: {e}")
             raise TokenError(f"Token refresh failed: {e}")
 
-    async def _is_token_live_remote(self, access_token: str, auth_domain: str) -> bool:
-        """Check token validity via Auth0 /userinfo endpoint."""
+    async def _is_token_live_remote(self, access_token: str, issuer: str) -> bool:
+        """Check token validity via userinfo endpoint (discovered via OIDC)."""
         try:
+            oidc_config = get_oidc_config(issuer)
+            userinfo_endpoint = oidc_config.get("userinfo_endpoint", f"{issuer}/userinfo")
+
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"https://{auth_domain}/userinfo",
+                    userinfo_endpoint,
                     headers={"Authorization": f"Bearer {access_token}"},
                     timeout=5.0,
                 )
@@ -275,7 +343,7 @@ class TokenManager:
         cfg = get_static_config()
 
         # Fast path: local JWT verification
-        jwt_valid = verify_jwt_local(access_token, cfg.auth_domain, cfg.api_audience)
+        jwt_valid = verify_jwt_local(access_token, cfg.auth_issuer, cfg.api_audience)
 
         if jwt_valid is True:
             logger.debug("Token validated locally")
@@ -284,7 +352,7 @@ class TokenManager:
         if jwt_valid is None:
             # Couldn't verify locally, try remote validation
             logger.debug("Local validation failed, trying remote")
-            if await self._is_token_live_remote(access_token, cfg.auth_domain):
+            if await self._is_token_live_remote(access_token, cfg.auth_issuer):
                 logger.debug("Token validated remotely")
                 return token_data
 
@@ -358,12 +426,15 @@ async def is_token_active(base_url: str) -> bool:
     if not access_token:
         return False
 
-    # Test the access token against Auth0
+    # Test the access token via userinfo endpoint
     try:
         cfg = get_static_config()
+        oidc_config = get_oidc_config(cfg.auth_issuer)
+        userinfo_endpoint = oidc_config.get("userinfo_endpoint", f"{cfg.auth_issuer}/userinfo")
+
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"https://{cfg.auth_domain}/userinfo",
+                userinfo_endpoint,
                 headers={"Authorization": f"Bearer {access_token}"},
                 timeout=10.0,
             )
@@ -416,7 +487,7 @@ async def is_token_active_with_refresh(base_url: str) -> bool:
             refresh_token=refresh_token,
             client_id=cfg.client_id,
             client_secret=cfg.client_secret,
-            domain=cfg.auth_domain,
+            issuer=cfg.auth_issuer,
         )
 
         # Merge with existing data to preserve any additional fields
@@ -448,14 +519,14 @@ async def validate_token(token: str, base_url: str) -> dict:
     Notes
     -----
     This function uses local JWT verification first, then falls back to
-    Auth0's /userinfo endpoint for validation.
+    the userinfo endpoint for validation.
     """
     from .config import get_static_config
 
     cfg = get_static_config()
 
     # Fast path: local JWT verification
-    jwt_valid = verify_jwt_local(token, cfg.auth_domain, cfg.api_audience)
+    jwt_valid = verify_jwt_local(token, cfg.auth_issuer, cfg.api_audience)
 
     if jwt_valid is True:
         return {"valid": True}
@@ -463,9 +534,12 @@ async def validate_token(token: str, base_url: str) -> dict:
     if jwt_valid is None:
         # Couldn't verify locally, try remote validation
         try:
+            oidc_config = get_oidc_config(cfg.auth_issuer)
+            userinfo_endpoint = oidc_config.get("userinfo_endpoint", f"{cfg.auth_issuer}/userinfo")
+
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"https://{cfg.auth_domain}/userinfo",
+                    userinfo_endpoint,
                     headers={"Authorization": f"Bearer {token}"},
                     timeout=5.0,
                 )

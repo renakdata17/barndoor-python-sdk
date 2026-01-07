@@ -29,7 +29,7 @@ from .auth_store import clear_cached_token, is_token_active, save_user_token
 
 
 async def interactive_login(
-    auth_domain: str,
+    auth_issuer: str,
     client_id: str,
     client_secret: str,
     audience: str,
@@ -43,8 +43,8 @@ async def interactive_login(
 
     Parameters
     ----------
-    auth_domain : str
-        Auth0 domain (e.g., "barndoor.us.auth0.com")
+    auth_issuer : str
+        OIDC issuer URL (e.g., "https://auth.barndoor.ai")
     client_id : str
         OAuth client ID
     client_secret : str
@@ -54,7 +54,7 @@ async def interactive_login(
     base_url : str, optional
         Base URL of the Barndoor API. Default is "https://{organization_id}.mcp.barndoor.ai"
     port : int, optional
-        Local port for OAuth callback. Default is 8765
+        Local port for OAuth callback. Default is 52765
 
     Returns
     -------
@@ -70,10 +70,11 @@ async def interactive_login(
     redirect_uri, waiter = start_local_callback_server(port=port)
 
     auth_url = build_authorization_url(
-        domain=auth_domain,
+        domain="",  # Not used when issuer is provided
         client_id=client_id,
         redirect_uri=redirect_uri,
         audience=audience,
+        issuer=auth_issuer,
     )
 
     print("\nOpening browser for authentication...")
@@ -94,11 +95,12 @@ async def interactive_login(
 
     # Exchange code for token
     token = exchange_code_for_token_backend(
-        domain=auth_domain,
+        domain="",  # Not used when issuer is provided
         client_id=client_id,
         client_secret=client_secret,
         code=code,
         redirect_uri=redirect_uri,
+        issuer=auth_issuer,
     )
 
     return token
@@ -115,14 +117,16 @@ async def main():
 
     Environment Variables
     ---------------------
-    AUTH_DOMAIN : str
-        Auth domain (production default "auth.barndoor.ai"; override for dev/local if needed)
+    BARNDOOR_ENV : str
+        Environment name (production, dev, localdev). Auth URLs are baked in per environment.
+    AUTH_URL : str, optional
+        Override the auth issuer URL if needed
     AGENT_CLIENT_ID : str
         OAuth client ID (required)
     AGENT_CLIENT_SECRET : str
         OAuth client secret (required)
     BARNDOOR_URL : str
-        API base URL (defaults to "https://{organization_id}.mcp.barndoor.ai")
+        API base URL (defaults based on environment)
 
     Exit Codes
     ----------
@@ -143,11 +147,11 @@ async def main():
         logging.getLogger(__name__).info("✓ Valid token already exists in ~/.barndoor/token.json")
         return
 
-    # Get configuration from environment
-    auth_domain = cfg.AUTH_DOMAIN
+    # Get configuration - auth issuer is baked in per environment
+    auth_issuer = cfg.auth_issuer
     client_id = cfg.AGENT_CLIENT_ID
     client_secret = cfg.AGENT_CLIENT_SECRET
-    audience = "https://barndoor.ai/"
+    audience = cfg.api_audience
 
     if not client_id or not client_secret:
         logging.error(
@@ -162,7 +166,7 @@ async def main():
     try:
         # Perform interactive login
         token = await interactive_login(
-            auth_domain=auth_domain,
+            auth_issuer=auth_issuer,
             client_id=client_id,
             client_secret=client_secret,
             audience=audience,

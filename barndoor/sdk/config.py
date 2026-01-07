@@ -9,18 +9,64 @@ from dotenv import load_dotenv
 from jose import jwt
 from pydantic import BaseModel, Field
 
+# Baked-in auth configuration per environment
+# Users should NOT need to configure these - just set BARNDOOR_ENV
+#
+# We have 6 environments: 3 for trial (Keycloak), 3 for enterprise (Auth0)
+# Will consolidate in the future.
+AUTH_CONFIG = {
+    # === Trial environments (Keycloak) - DEFAULT ===
+    "production": {
+        "issuer": "https://auth.trial.barndoor.ai/realms/barndoor-local",
+        "audience": "https://barndoor.ai/",
+        "base_url": "https://{org_slug}.mcp.barndoor.ai",
+    },
+    "uat": {
+        "issuer": "https://auth.trial.barndooruat.com/realms/barndoor-local",
+        "audience": "https://barndoor.ai/",
+        "base_url": "https://{org_slug}.platform.barndooruat.com",
+    },
+    "dev": {
+        "issuer": "https://auth.trial.barndoordev.com/realms/barndoor-local",
+        "audience": "https://barndoor.ai/",
+        "base_url": "https://{org_slug}.platform.barndoordev.com",
+    },
+    # === Enterprise environments (Auth0) ===
+    "enterprise-production": {
+        "issuer": "https://auth.barndoor.ai",
+        "audience": "https://barndoor.ai/",
+        "base_url": "https://{org_slug}.mcp.barndoor.ai",
+    },
+    "enterprise-uat": {
+        "issuer": "https://auth.barndooruat.com",
+        "audience": "https://barndoor.ai/",
+        "base_url": "https://{org_slug}.platform.barndooruat.com",
+    },
+    "enterprise-dev": {
+        "issuer": "https://auth.barndoordev.com",
+        "audience": "https://barndoor.ai/",
+        "base_url": "https://{org_slug}.platform.barndoordev.com",
+    },
+    # === Local development (Keycloak) ===
+    "localdev": {
+        "issuer": "http://localhost:8080/realms/barndoor-local",
+        "audience": "https://barndoor.ai/",
+        "base_url": "http://localhost:8000",
+    },
+}
+
 
 class BarndoorConfig(BaseModel):
     """Unified configuration for the Barndoor SDK."""
 
-    # Authentication
-    auth_domain: str = Field(default="auth.barndoor.ai")
+    # Authentication - issuer is the full OIDC issuer URL
+    auth_issuer: str = Field(default="https://auth.barndoor.ai")
     client_id: str = Field(default="")
     client_secret: str = Field(default="")
     api_audience: str = Field(default="https://barndoor.ai/")
 
-    # API endpoints (templates support {organization_id})
-    base_url: str = Field(default="https://{organization_id}.mcp.barndoor.ai")
+    # API endpoints (templates support {org_slug})
+    base_url: str = Field(default="https://{org_slug}.mcp.barndoor.ai")
 
     # Runtime settings
     environment: str = Field(default="production")
@@ -33,7 +79,19 @@ class BarndoorConfig(BaseModel):
     class Config:
         frozen = True
 
-    # Backwards-compatible uppercase aliases (read-only)
+    # Backwards-compatible aliases (read-only)
+    @property
+    def auth_domain(self) -> str:
+        """Extract domain from issuer URL for backwards compatibility."""
+        # Remove protocol and path to get just the domain
+        issuer = self.auth_issuer
+        if issuer.startswith("https://"):
+            issuer = issuer[8:]
+        elif issuer.startswith("http://"):
+            issuer = issuer[7:]
+        # Return domain + path (needed for Keycloak realms)
+        return issuer
+
     @property
     def AUTH_DOMAIN(self) -> str:
         return self.auth_domain
@@ -75,41 +133,43 @@ class BarndoorConfig(BaseModel):
         else:
             env_mode = "production"
 
-        # Base configuration from environment
+        # Normalize environment mode
+        # Trial is the default - enterprise requires explicit prefix
+        env_mode_map = {
+            # Trial (default)
+            "production": "production",
+            "prod": "production",
+            "uat": "uat",
+            "dev": "dev",
+            "development": "dev",
+            # Enterprise (requires prefix)
+            "enterprise-production": "enterprise-production",
+            "enterprise-prod": "enterprise-production",
+            "enterprise-uat": "enterprise-uat",
+            "enterprise-dev": "enterprise-dev",
+            "enterprise": "enterprise-production",  # Default enterprise to prod
+            # Local
+            "localdev": "localdev",
+            "local": "localdev",
+        }
+        env_mode = env_mode_map.get(env_mode, "production")
+
+        # Get baked-in auth config for this environment
+        auth_cfg = AUTH_CONFIG.get(env_mode, AUTH_CONFIG["production"])
+
+        # Base configuration - auth is baked in, with optional override via AUTH_URL
         config_data = {
-            "auth_domain": _get_env_var(["AUTH_DOMAIN", "AUTH0_DOMAIN"], "auth.barndoor.ai"),
+            "auth_issuer": os.getenv("AUTH_URL", auth_cfg["issuer"]),
             "client_id": _get_env_var(["AGENT_CLIENT_ID", "AUTH_CLIENT_ID"], ""),
             "client_secret": _get_env_var(["AGENT_CLIENT_SECRET", "AUTH_CLIENT_SECRET"], ""),
-            "api_audience": os.getenv("API_AUDIENCE", "https://barndoor.ai/"),
+            "api_audience": os.getenv("API_AUDIENCE", auth_cfg["audience"]),
             "environment": env_mode,
             "prompt_for_login": _get_bool("PROMPT_FOR_LOGIN", False),
             "skip_login_local": _get_bool("SKIP_LOGIN_LOCAL", False),
         }
 
-        # Set environment-specific defaults
-        if env_mode in ("localdev", "local"):
-            config_data.update(
-                {
-                    "auth_domain": _get_env_var(["AUTH_DOMAIN"], "localhost:3001"),
-                    "base_url": os.getenv("BARNDOOR_URL", "http://localhost:8000"),
-                }
-            )
-        elif env_mode in ("development", "dev"):
-            config_data.update(
-                {
-                    "base_url": os.getenv(
-                        "BARNDOOR_URL", "https://{organization_id}.mcp.barndoordev.com"
-                    ),
-                }
-            )
-        else:  # production
-            config_data.update(
-                {
-                    "base_url": os.getenv(
-                        "BARNDOOR_URL", "https://{organization_id}.mcp.barndoor.ai"
-                    ),
-                }
-            )
+        # Set base_url from config, with optional override
+        config_data["base_url"] = os.getenv("BARNDOOR_URL", auth_cfg["base_url"])
 
         # Apply JWT-based overrides if token provided
         if token:
@@ -129,9 +189,7 @@ class BarndoorConfig(BaseModel):
                 if org_name:
                     config_data["organization_id"] = org_name
                     # Resolve URL templates
-                    config_data["base_url"] = config_data["base_url"].format(
-                        organization_id=org_name
-                    )
+                    config_data["base_url"] = config_data["base_url"].format(org_slug=org_name)
             except Exception:
                 # Ignore JWT parsing errors - use defaults
                 pass

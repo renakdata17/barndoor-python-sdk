@@ -317,7 +317,7 @@ class BarndoorSDK:
     @classmethod
     async def login_interactive(
         cls,
-        auth_domain: str,
+        auth_issuer: str,
         client_id: str,
         client_secret: str,
         audience: str,
@@ -333,8 +333,8 @@ class BarndoorSDK:
 
         Parameters
         ----------
-        auth_domain : str
-            Auth0 domain (e.g., "barndoor.us.auth0.com")
+        auth_issuer : str
+            OIDC issuer URL (e.g., "https://auth.barndoor.ai")
         client_id : str
             OAuth client ID
         client_secret : str
@@ -344,7 +344,7 @@ class BarndoorSDK:
         base_url : str, optional
             Base URL of the Barndoor API. Default is "https://{organization_id}.mcp.barndoor.ai"
         port : int, optional
-            Local port for OAuth callback. Default is 8765
+            Local port for OAuth callback. Default is 52765
 
         Returns
         -------
@@ -372,10 +372,11 @@ class BarndoorSDK:
         redirect_uri, waiter = bda_auth.start_local_callback_server(port=port)
 
         auth_url = bda_auth.build_authorization_url(
-            domain=auth_domain,
+            domain="",  # Not used when issuer is provided
             client_id=client_id,
             redirect_uri=redirect_uri,
             audience=audience,
+            issuer=auth_issuer,
         )
 
         webbrowser.open(auth_url)
@@ -390,11 +391,12 @@ class BarndoorSDK:
 
         # Hybrid flow – exchange code with client secret (no PKCE).
         token = bda_auth.exchange_code_for_token_backend(
-            domain=auth_domain,
+            domain="",  # Not used when issuer is provided
             client_id=client_id,
             client_secret=client_secret,
             code=code,
             redirect_uri=redirect_uri,
+            issuer=auth_issuer,
         )
 
         return cls(base_url, barndoor_token=token)

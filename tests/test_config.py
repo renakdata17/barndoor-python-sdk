@@ -21,7 +21,7 @@ class TestConfiguration:
     def test_config_from_environment(self):
         """Test configuration loading from environment variables."""
         env_vars = {
-            "AUTH_DOMAIN": "custom.auth.domain",
+            "AUTH_URL": "https://custom.auth.domain",
             "AGENT_CLIENT_ID": "test-client-id",
             "AGENT_CLIENT_SECRET": "test-secret",
             "MODE": "production",
@@ -30,7 +30,7 @@ class TestConfiguration:
         with patch.dict("os.environ", env_vars):
             config = get_static_config()
 
-            assert config.auth_domain == "custom.auth.domain"
+            assert config.auth_issuer == "https://custom.auth.domain"
             assert config.client_id == "test-client-id"
             assert config.client_secret == "test-secret"
 

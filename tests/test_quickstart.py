@@ -67,7 +67,7 @@ class TestLoginInteractive:
                 ),
             ):
                 sdk = await login_interactive(
-                    auth_domain="test.auth0.com",
+                    auth_issuer="https://test.auth0.com",
                     client_id="test-client",
                     client_secret="test-secret",
                 )
@@ -88,7 +88,13 @@ class TestLoginInteractive:
             mock_cfg.return_value = type(
                 "C",
                 (),
-                {"client_id": "", "client_secret": "", "auth_domain": "", "api_audience": ""},
+                {
+                    "client_id": "",
+                    "client_secret": "",
+                    "auth_issuer": "https://auth.test.com",
+                    "api_audience": "",
+                    "base_url": "https://test.mcp.barndoor.ai",
+                },
             )()
             with pytest.raises(RuntimeError, match="AGENT_CLIENT_ID / AGENT_CLIENT_SECRET not set"):
                 await login_interactive(client_id="", client_secret="")

@@ -1,12 +1,11 @@
-"""Minimal Auth0 helper functions required by examples/sample_agent.py.
+"""OAuth helper functions for the Barndoor SDK.
 
 These helpers implement:
     • OAuth 2.0 client-credentials flow (`get_client_credentials_token`)
     • Interactive PKCE login helpers (`build_authorization_url`,
       `start_local_callback_server`, `exchange_code_for_token`)
 
-No JWT verification or Auth0 Management API calls are included – the sample
-script only needs to obtain a user token, not inspect its contents.
+Uses OIDC discovery to automatically determine endpoints for any provider.
 """
 
 from __future__ import annotations
@@ -22,6 +21,8 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import httpx
+
+from .auth_store import get_oidc_config
 
 __all__ = [
     "get_client_credentials_token",
@@ -55,6 +56,8 @@ def get_client_credentials_token(
     client_id: str,
     client_secret: str,
     audience: str,
+    *,
+    issuer: str | None = None,
 ) -> str:
     """Perform OAuth 2.0 client-credentials grant and return the access token.
 
@@ -65,13 +68,15 @@ def get_client_credentials_token(
     Parameters
     ----------
     domain : str
-        Auth0 domain (e.g., "barndoor.us.auth0.com")
+        DEPRECATED: Use issuer instead. Auth domain for backwards compatibility.
     client_id : str
         OAuth client ID for the application
     client_secret : str
         OAuth client secret for the application
     audience : str
         API audience identifier (e.g., "https://barndoor.ai/")
+    issuer : str, optional
+        OIDC issuer URL. If provided, uses OIDC discovery to find token endpoint.
 
     Returns
     -------
@@ -90,9 +95,16 @@ def get_client_credentials_token(
     The token is returned directly without any caching. For user tokens
     that should be cached, use the interactive login flow instead.
     """
+    # Use OIDC discovery if issuer provided, otherwise fall back to domain
+    if issuer:
+        oidc_config = get_oidc_config(issuer)
+        token_endpoint = oidc_config.get("token_endpoint", f"{issuer}/oauth/token")
+    else:
+        token_endpoint = f"https://{domain}/oauth/token"
+
     resp = httpx.post(
-        f"https://{domain}/oauth/token",
-        json={
+        token_endpoint,
+        data={
             "grant_type": "client_credentials",
             "client_id": client_id,
             "client_secret": client_secret,
@@ -110,8 +122,10 @@ def build_authorization_url(
     redirect_uri: str,
     audience: str,
     scope: str = "openid profile email offline_access",
+    *,
+    issuer: str | None = None,
 ) -> str:
-    """Build a PKCE-enabled Auth0 authorization URL.
+    """Build a PKCE-enabled authorization URL.
 
     Constructs the URL for initiating an OAuth 2.0 authorization code flow
     with PKCE (Proof Key for Code Exchange) for enhanced security. This is
@@ -120,15 +134,17 @@ def build_authorization_url(
     Parameters
     ----------
     domain : str
-        Auth0 domain (e.g., "barndoor.us.auth0.com")
+        DEPRECATED: Use issuer instead. Auth domain for backwards compatibility.
     client_id : str
         OAuth client ID for the application
     redirect_uri : str
-        URL where Auth0 will redirect after authentication
+        URL where the auth provider will redirect after authentication
     audience : str
         API audience identifier (e.g., "https://barndoor.ai/")
     scope : str, optional
         OAuth scopes to request. Default is "openid profile email offline_access"
+    issuer : str, optional
+        OIDC issuer URL. If provided, uses OIDC discovery to find authorization endpoint.
 
     Returns
     -------
@@ -164,7 +180,15 @@ def build_authorization_url(
         "code_challenge_method": "S256",
         "prompt": "consent",  # Forces consent screen for refresh tokens
     }
-    return f"https://{domain}/authorize?{urlencode(params)}"
+
+    # Use OIDC discovery if issuer provided, otherwise fall back to domain
+    if issuer:
+        oidc_config = get_oidc_config(issuer)
+        auth_endpoint = oidc_config.get("authorization_endpoint", f"{issuer}/authorize")
+    else:
+        auth_endpoint = f"https://{domain}/authorize"
+
+    return f"{auth_endpoint}?{urlencode(params)}"
 
 
 def start_local_callback_server(
@@ -245,6 +269,8 @@ def exchange_code_for_token(
     code: str,
     redirect_uri: str,
     client_secret: str | None = None,
+    *,
+    issuer: str | None = None,
 ) -> dict:  # Return full token response
     """Exchange an authorization code for tokens."""
     payload: dict[str, Any] = {
@@ -262,7 +288,14 @@ def exchange_code_for_token(
     if client_secret:
         payload["client_secret"] = client_secret
 
-    resp = httpx.post(f"https://{domain}/oauth/token", json=payload, timeout=15)
+    # Use OIDC discovery if issuer provided, otherwise fall back to domain
+    if issuer:
+        oidc_config = get_oidc_config(issuer)
+        token_endpoint = oidc_config.get("token_endpoint", f"{issuer}/oauth/token")
+    else:
+        token_endpoint = f"https://{domain}/oauth/token"
+
+    resp = httpx.post(token_endpoint, data=payload, timeout=15)
     resp.raise_for_status()
     return resp.json()  # Return full response with refresh_token
 
@@ -273,6 +306,8 @@ def exchange_code_for_token_backend(
     client_secret: str,
     code: str,
     redirect_uri: str,
+    *,
+    issuer: str | None = None,
 ) -> dict:  # Return full token response
     """Exchange authorization code for tokens using client credentials."""
     return exchange_code_for_token(
@@ -281,11 +316,17 @@ def exchange_code_for_token_backend(
         code=code,
         redirect_uri=redirect_uri,
         client_secret=client_secret,
+        issuer=issuer,
     )
 
 
 def refresh_access_token(
-    refresh_token: str, client_id: str, client_secret: str, domain: str
+    refresh_token: str,
+    client_id: str,
+    client_secret: str,
+    domain: str | None = None,
+    *,
+    issuer: str | None = None,
 ) -> dict:
     """Refresh access token using refresh token."""
     payload = {
@@ -294,6 +335,16 @@ def refresh_access_token(
         "client_secret": client_secret,
         "refresh_token": refresh_token,
     }
-    resp = httpx.post(f"https://{domain}/oauth/token", json=payload, timeout=15)
+
+    # Use OIDC discovery if issuer provided, otherwise fall back to domain
+    if issuer:
+        oidc_config = get_oidc_config(issuer)
+        token_endpoint = oidc_config.get("token_endpoint", f"{issuer}/oauth/token")
+    elif domain:
+        token_endpoint = f"https://{domain}/oauth/token"
+    else:
+        raise ValueError("Either issuer or domain must be provided")
+
+    resp = httpx.post(token_endpoint, data=payload, timeout=15)
     resp.raise_for_status()
     return resp.json()  # Contains fresh access_token and possibly new refresh_token

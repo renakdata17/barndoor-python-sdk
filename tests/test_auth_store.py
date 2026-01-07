@@ -300,7 +300,15 @@ class TestJWTVerification:
 
     def test_get_jwks_success(self, mock_jwks_keys):
         """Test successful JWKS fetching."""
-        with patch("httpx.Client") as mock_client:
+        mock_oidc_config = {
+            "issuer": "https://test.auth0.com",
+            "jwks_uri": "https://test.auth0.com/.well-known/jwks.json",
+        }
+
+        with (
+            patch("barndoor.sdk.auth_store.get_oidc_config", return_value=mock_oidc_config),
+            patch("httpx.Client") as mock_client,
+        ):
             mock_response = MagicMock()
             mock_response.json.return_value = {"keys": mock_jwks_keys}
             mock_client.return_value.__enter__.return_value.get.return_value = mock_response
@@ -308,7 +316,7 @@ class TestJWTVerification:
             # Clear cache first
             _get_jwks.cache_clear()
 
-            keys = _get_jwks("test.auth0.com")
+            keys = _get_jwks("https://test.auth0.com")
             assert keys == mock_jwks_keys
 
     def test_get_jwks_failure(self):
@@ -622,7 +630,15 @@ class TestEdgeCases:
 
     def test_jwks_caching(self, mock_jwks_keys):
         """Test that JWKS keys are properly cached."""
-        with patch("httpx.Client") as mock_client:
+        mock_oidc_config = {
+            "issuer": "https://test.auth0.com",
+            "jwks_uri": "https://test.auth0.com/.well-known/jwks.json",
+        }
+
+        with (
+            patch("barndoor.sdk.auth_store.get_oidc_config", return_value=mock_oidc_config),
+            patch("httpx.Client") as mock_client,
+        ):
             mock_response = MagicMock()
             mock_response.json.return_value = {"keys": mock_jwks_keys}
             mock_client.return_value.__enter__.return_value.get.return_value = mock_response
@@ -631,11 +647,11 @@ class TestEdgeCases:
             _get_jwks.cache_clear()
 
             # First call should hit the network
-            keys1 = _get_jwks("test.auth0.com")
+            keys1 = _get_jwks("https://test.auth0.com")
             assert keys1 == mock_jwks_keys
 
             # Second call should use cache (no additional network call)
-            keys2 = _get_jwks("test.auth0.com")
+            keys2 = _get_jwks("https://test.auth0.com")
             assert keys2 == mock_jwks_keys
 
             # Should only have made one HTTP request
