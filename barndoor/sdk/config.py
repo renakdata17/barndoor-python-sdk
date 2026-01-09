@@ -19,7 +19,7 @@ AUTH_CONFIG = {
     "production": {
         "issuer": "https://auth.trial.barndoor.ai/realms/barndoor-local",
         "audience": "https://barndoor.ai/",
-        "base_url": "https://{org_slug}.mcp.barndoor.ai",
+        "base_url": "https://{org_slug}.platform.barndoor.ai",
     },
     "uat": {
         "issuer": "https://auth.trial.barndooruat.com/realms/barndoor-local",
@@ -40,12 +40,12 @@ AUTH_CONFIG = {
     "enterprise-uat": {
         "issuer": "https://auth.barndooruat.com",
         "audience": "https://barndoor.ai/",
-        "base_url": "https://{org_slug}.platform.barndooruat.com",
+        "base_url": "https://{org_slug}.mcp.barndooruat.com",
     },
     "enterprise-dev": {
         "issuer": "https://auth.barndoordev.com",
         "audience": "https://barndoor.ai/",
-        "base_url": "https://{org_slug}.platform.barndoordev.com",
+        "base_url": "https://{org_slug}.mcp.barndoordev.com",
     },
     # === Local development (Keycloak) ===
     "localdev": {
