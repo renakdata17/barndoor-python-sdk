@@ -374,6 +374,50 @@ class TestJWTVerification:
             assert result is None
 
 
+class TestOIDCDiscoveryFallback:
+    """Test OIDC discovery fallback behavior."""
+
+    def test_keycloak_fallback_paths(self):
+        """Test that Keycloak-style issuers get Keycloak endpoint paths on discovery failure."""
+        from barndoor.sdk.auth_store import _oidc_config_cache, get_oidc_config
+
+        issuer = "https://auth.trial.barndoor.ai/realms/barndoor-local"
+        # Clear cache
+        _oidc_config_cache.pop(issuer, None)
+
+        with patch("httpx.Client") as mock_client:
+            mock_client.return_value.__enter__.return_value.get.side_effect = Exception(
+                "Network error"
+            )
+
+            config = get_oidc_config(issuer)
+
+            assert config["token_endpoint"] == f"{issuer}/protocol/openid-connect/token"
+            assert config["authorization_endpoint"] == f"{issuer}/protocol/openid-connect/auth"
+            assert config["userinfo_endpoint"] == f"{issuer}/protocol/openid-connect/userinfo"
+            assert config["jwks_uri"] == f"{issuer}/protocol/openid-connect/certs"
+
+    def test_auth0_fallback_paths(self):
+        """Test that Auth0-style issuers get Auth0 endpoint paths on discovery failure."""
+        from barndoor.sdk.auth_store import _oidc_config_cache, get_oidc_config
+
+        issuer = "https://auth.barndoor.ai"
+        # Clear cache
+        _oidc_config_cache.pop(issuer, None)
+
+        with patch("httpx.Client") as mock_client:
+            mock_client.return_value.__enter__.return_value.get.side_effect = Exception(
+                "Network error"
+            )
+
+            config = get_oidc_config(issuer)
+
+            assert config["token_endpoint"] == f"{issuer}/oauth/token"
+            assert config["authorization_endpoint"] == f"{issuer}/authorize"
+            assert config["userinfo_endpoint"] == f"{issuer}/userinfo"
+            assert config["jwks_uri"] == f"{issuer}/.well-known/jwks.json"
+
+
 class TestFileLocking:
     """Test file locking functionality."""
 

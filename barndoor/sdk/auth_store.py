@@ -66,14 +66,28 @@ def get_oidc_config(issuer: str) -> dict:
             return config
     except Exception as e:
         logger.warning(f"OIDC discovery failed for {issuer}: {e}")
-        # Return minimal fallback config (Auth0-style paths)
-        return {
-            "issuer": issuer,
-            "token_endpoint": f"{issuer}/oauth/token",
-            "authorization_endpoint": f"{issuer}/authorize",
-            "userinfo_endpoint": f"{issuer}/userinfo",
-            "jwks_uri": f"{issuer}/.well-known/jwks.json",
-        }
+        # Return minimal fallback config using RFC 8414 / OpenID Connect standard paths.
+        # Keycloak, Auth0, and most OIDC providers support these.
+        # Previously used Auth0-specific paths (/oauth/token, /authorize) which don't
+        # work with Keycloak or other standard OIDC providers.
+        if "/realms/" in issuer:
+            # Keycloak-style issuer — use protocol endpoint paths
+            return {
+                "issuer": issuer,
+                "token_endpoint": f"{issuer}/protocol/openid-connect/token",
+                "authorization_endpoint": f"{issuer}/protocol/openid-connect/auth",
+                "userinfo_endpoint": f"{issuer}/protocol/openid-connect/userinfo",
+                "jwks_uri": f"{issuer}/protocol/openid-connect/certs",
+            }
+        else:
+            # Auth0/generic OIDC provider — use standard paths
+            return {
+                "issuer": issuer,
+                "token_endpoint": f"{issuer}/oauth/token",
+                "authorization_endpoint": f"{issuer}/authorize",
+                "userinfo_endpoint": f"{issuer}/userinfo",
+                "jwks_uri": f"{issuer}/.well-known/jwks.json",
+            }
 
 
 class _FileLock:

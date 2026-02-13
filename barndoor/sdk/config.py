@@ -24,7 +24,7 @@ AUTH_CONFIG = {
     "uat": {
         "issuer": "https://auth.trial.barndooruat.com/realms/barndoor-local",
         "audience": "https://barndoor.ai/",
-        "base_url": "https://{org_slug}.platform.barndooruat.com",
+        "base_url": "https://{org_slug}.trial.barndooruat.com",
     },
     "dev": {
         "issuer": "https://auth.trial.barndoordev.com/realms/barndoor-local",
@@ -60,13 +60,14 @@ class BarndoorConfig(BaseModel):
     """Unified configuration for the Barndoor SDK."""
 
     # Authentication - issuer is the full OIDC issuer URL
-    auth_issuer: str = Field(default="https://auth.barndoor.ai")
+    # Defaults match AUTH_CONFIG["production"] (trial/Keycloak)
+    auth_issuer: str = Field(default="https://auth.trial.barndoor.ai/realms/barndoor-local")
     client_id: str = Field(default="")
     client_secret: str = Field(default="")
     api_audience: str = Field(default="https://barndoor.ai/")
 
     # API endpoints (templates support {org_slug})
-    base_url: str = Field(default="https://{org_slug}.mcp.barndoor.ai")
+    base_url: str = Field(default="https://{org_slug}.platform.barndoor.ai")
 
     # Runtime settings
     environment: str = Field(default="production")

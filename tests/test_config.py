@@ -12,9 +12,11 @@ class TestConfiguration:
     """Test configuration loading and management."""
 
     def test_default_config_values(self):
-        """Test default configuration values."""
+        """Test default configuration values match trial/Keycloak production."""
         config = AppConfig()
-        assert config.AUTH_DOMAIN == "auth.barndoor.ai"
+        assert config.AUTH_DOMAIN == "auth.trial.barndoor.ai/realms/barndoor-local"
+        assert config.auth_issuer == "https://auth.trial.barndoor.ai/realms/barndoor-local"
+        assert config.base_url == "https://{org_slug}.platform.barndoor.ai"
         assert config.API_AUDIENCE == "https://barndoor.ai/"
         assert config.PROMPT_FOR_LOGIN is False
 
