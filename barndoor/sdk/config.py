@@ -22,12 +22,12 @@ AUTH_CONFIG = {
         "base_url": "https://{org_slug}.platform.barndoor.ai",
     },
     "uat": {
-        "issuer": "https://auth.trial.barndooruat.com/realms/barndoor-local",
+        "issuer": "https://auth.barndooruat.com/realms/barndoor-local",
         "audience": "https://barndoor.ai/",
         "base_url": "https://{org_slug}.trial.barndooruat.com",
     },
     "dev": {
-        "issuer": "https://auth.trial.barndoordev.com/realms/barndoor-local",
+        "issuer": "https://auth.barndoordev.com/realms/barndoor-local",
         "audience": "https://barndoor.ai/",
         "base_url": "https://{org_slug}.platform.barndoordev.com",
     },
