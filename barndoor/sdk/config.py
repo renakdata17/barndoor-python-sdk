@@ -17,17 +17,17 @@ from pydantic import BaseModel, Field
 AUTH_CONFIG = {
     # === Trial environments (Keycloak) - DEFAULT ===
     "production": {
-        "issuer": "https://auth.trial.barndoor.ai/realms/barndoor-local",
+        "issuer": "https://auth.trial.barndoor.ai/realms/barndoor",
         "audience": "https://barndoor.ai/",
         "base_url": "https://{org_slug}.platform.barndoor.ai",
     },
     "uat": {
-        "issuer": "https://auth.barndooruat.com/realms/barndoor-local",
+        "issuer": "https://auth.barndooruat.com/realms/barndoor",
         "audience": "https://barndoor.ai/",
         "base_url": "https://{org_slug}.trial.barndooruat.com",
     },
     "dev": {
-        "issuer": "https://auth.barndoordev.com/realms/barndoor-local",
+        "issuer": "https://auth.barndoordev.com/realms/barndoor",
         "audience": "https://barndoor.ai/",
         "base_url": "https://{org_slug}.platform.barndoordev.com",
     },
@@ -49,7 +49,7 @@ AUTH_CONFIG = {
     },
     # === Local development (Keycloak) ===
     "localdev": {
-        "issuer": "http://localhost:8080/realms/barndoor-local",
+        "issuer": "http://localhost:8080/realms/barndoor",
         "audience": "https://barndoor.ai/",
         "base_url": "http://localhost:8000",
     },
@@ -61,7 +61,7 @@ class BarndoorConfig(BaseModel):
 
     # Authentication - issuer is the full OIDC issuer URL
     # Defaults match AUTH_CONFIG["production"] (trial/Keycloak)
-    auth_issuer: str = Field(default="https://auth.trial.barndoor.ai/realms/barndoor-local")
+    auth_issuer: str = Field(default="https://auth.trial.barndoor.ai/realms/barndoor")
     client_id: str = Field(default="")
     client_secret: str = Field(default="")
     api_audience: str = Field(default="https://barndoor.ai/")
