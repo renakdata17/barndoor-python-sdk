@@ -381,7 +381,7 @@ class TestOIDCDiscoveryFallback:
         """Test that Keycloak-style issuers get Keycloak endpoint paths on discovery failure."""
         from barndoor.sdk.auth_store import _oidc_config_cache, get_oidc_config
 
-        issuer = "https://auth.trial.barndoor.ai/realms/barndoor"
+        issuer = "https://auth.barndoor.ai/realms/barndoor"
         # Clear cache
         _oidc_config_cache.pop(issuer, None)
 

@@ -42,7 +42,7 @@ def get_oidc_config(issuer: str) -> dict:
     ----------
     issuer : str
         The OIDC issuer URL (e.g., https://auth.barndoor.ai or
-        https://auth.trial.barndoordev.com/realms/barndoor)
+        https://auth.barndoordev.com/realms/barndoor)
 
     Returns
     -------
