@@ -312,6 +312,165 @@ class BarndoorSDK:
 
         return ServerDetail.model_validate(response)
 
+    # ---------- Policy management (V2 ACC APIs) -----------------
+
+    async def list_policies(self, page: int = 1, limit: int = 10, **filters) -> dict:
+        """List policies with pagination and filtering.
+
+        Parameters
+        ----------
+        page : int, optional
+            Page number for pagination. Default is 1
+        limit : int, optional
+            Number of items per page. Default is 10
+        **filters
+            Additional query parameters for filtering
+
+        Returns
+        -------
+        dict
+            Paginated response containing policies
+        """
+        if not isinstance(page, int) or page < 1:
+            raise ValueError("Page must be a positive integer")
+        if not isinstance(limit, int) or limit < 1 or limit > 1000:
+            raise ValueError("Limit must be a positive integer between 1 and 1000")
+
+        logger.debug(f"Listing policies (page={page}, limit={limit})")
+        params = {"page": page, "limit": limit, **filters}
+        return await self._req("GET", "/api/v2/policies", params=params)
+
+    async def get_policy(self, policy_id: str) -> dict:
+        """Get detailed information about a specific policy.
+
+        Parameters
+        ----------
+        policy_id : str
+            Unique identifier of the policy
+
+        Returns
+        -------
+        dict
+            Policy details
+        """
+        if not policy_id or not isinstance(policy_id, str):
+            raise ValueError("Policy ID must be a non-empty string")
+
+        policy_id = policy_id.strip()
+        if not policy_id:
+            raise ValueError("Policy ID cannot be empty or whitespace")
+
+        logger.debug(f"Fetching policy details for {policy_id}")
+        return await self._req("GET", f"/api/v2/policies/{policy_id}")
+
+    async def create_policy(self, policy_data: dict) -> dict:
+        """Create a new policy.
+
+        Parameters
+        ----------
+        policy_data : dict
+            Policy configuration data
+
+        Returns
+        -------
+        dict
+            Created policy details
+        """
+        if not isinstance(policy_data, dict):
+            raise ValueError("Policy data must be a dictionary")
+
+        logger.info("Creating new policy")
+        return await self._req("POST", "/api/v2/policies", json=policy_data)
+
+    async def update_policy(self, policy_id: str, policy_data: dict) -> dict:
+        """Update an existing policy.
+
+        Parameters
+        ----------
+        policy_id : str
+            Unique identifier of the policy to update
+        policy_data : dict
+            Updated policy configuration data
+
+        Returns
+        -------
+        dict
+            Updated policy details
+        """
+        if not policy_id or not isinstance(policy_id, str):
+            raise ValueError("Policy ID must be a non-empty string")
+        if not isinstance(policy_data, dict):
+            raise ValueError("Policy data must be a dictionary")
+
+        logger.info(f"Updating policy {policy_id}")
+        return await self._req("PATCH", f"/api/v2/policies/{policy_id}", json=policy_data)
+
+    async def clone_policy(self, policy_id: str, new_name: str) -> dict:
+        """Clone an existing policy.
+
+        Parameters
+        ----------
+        policy_id : str
+            Unique identifier of the policy to clone
+        new_name : str
+            Name for the cloned policy
+
+        Returns
+        -------
+        dict
+            Cloned policy details
+        """
+        if not policy_id or not isinstance(policy_id, str):
+            raise ValueError("Policy ID must be a non-empty string")
+        if not new_name or not isinstance(new_name, str):
+            raise ValueError("New name must be a non-empty string")
+
+        logger.info(f"Cloning policy {policy_id} as '{new_name}'")
+        return await self._req(
+            "POST", f"/api/v2/policies/{policy_id}/clone", json={"name": new_name}
+        )
+
+    async def validate_policy(self, validation_data: dict) -> dict:
+        """Validate policy configuration.
+
+        Parameters
+        ----------
+        validation_data : dict
+            Policy data to validate
+
+        Returns
+        -------
+        dict
+            Validation result
+        """
+        if not isinstance(validation_data, dict):
+            raise ValueError("Validation data must be a dictionary")
+
+        logger.debug("Validating policy configuration")
+        return await self._req("POST", "/api/v2/policies/validate", json=validation_data)
+
+    async def get_policy_summary(self) -> dict:
+        """Get summary of all policies.
+
+        Returns
+        -------
+        dict
+            Policy summary information
+        """
+        logger.debug("Fetching policy summary")
+        return await self._req("GET", "/api/v2/policies/summary")
+
+    async def get_policy_filter_definitions(self) -> list:
+        """Get available filter definitions for policies.
+
+        Returns
+        -------
+        list
+            Available filter categories and options
+        """
+        logger.debug("Fetching policy filter definitions")
+        return await self._req("GET", "/api/v2/policies/filter-definitions")
+
     # ---------- Convenience helpers -----------------
 
     @classmethod
