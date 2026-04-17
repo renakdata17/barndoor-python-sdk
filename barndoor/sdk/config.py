@@ -24,7 +24,7 @@ AUTH_CONFIG = {
     "uat": {
         "issuer": "https://auth.barndooruat.com/realms/barndoor",
         "audience": "https://barndoor.ai/",
-        "base_url": "https://{org_slug}.barndooruat.com",
+        "base_url": "https://{org_slug}.platform.barndooruat.com",
     },
     "dev": {
         "issuer": "https://auth.barndoordev.com/realms/barndoor",
@@ -116,44 +116,7 @@ class BarndoorConfig(BaseModel):
     @classmethod
     def from_environment(cls, token: str | None = None) -> BarndoorConfig:
         """Create configuration from environment variables and optional JWT token."""
-
-        # Load environment variables
-        # Determine environment mode with pragmatic precedence:
-        # - If BARNDOOR_ENV explicitly sets production/prod, prefer it over MODE
-        # - Else prefer MODE when set
-        # - Else fall back to BARNDOOR_ENV when set
-        # - Else default to production
-        be = os.getenv("BARNDOOR_ENV")
-        md = os.getenv("MODE")
-        if be and be.strip().lower() in ("production", "prod"):
-            env_mode = be.strip().lower()
-        elif md:
-            env_mode = md.strip().lower()
-        elif be:
-            env_mode = be.strip().lower()
-        else:
-            env_mode = "production"
-
-        # Normalize environment mode
-        # Trial is the default - enterprise requires explicit prefix
-        env_mode_map = {
-            # Trial (default)
-            "production": "production",
-            "prod": "production",
-            "uat": "uat",
-            "dev": "dev",
-            "development": "dev",
-            # Enterprise (requires prefix)
-            "enterprise-production": "enterprise-production",
-            "enterprise-prod": "enterprise-production",
-            "enterprise-uat": "enterprise-uat",
-            "enterprise-dev": "enterprise-dev",
-            "enterprise": "enterprise-production",  # Default enterprise to prod
-            # Local
-            "localdev": "localdev",
-            "local": "localdev",
-        }
-        env_mode = env_mode_map.get(env_mode, "production")
+        env_mode = _resolve_environment_mode(default="production")
 
         # Get baked-in auth config for this environment
         auth_cfg = AUTH_CONFIG.get(env_mode, AUTH_CONFIG["production"])
@@ -218,6 +181,35 @@ def _get_bool(key: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _resolve_environment_mode(*, default: str) -> str:
+    """Resolve the configured environment mode.
+
+    ``BARNDOOR_ENV`` is the primary selector. ``MODE`` remains as a legacy alias
+    when ``BARNDOOR_ENV`` is unset.
+    """
+    raw_mode = os.getenv("BARNDOOR_ENV") or os.getenv("MODE") or default
+    raw_mode = raw_mode.strip().lower()
+
+    env_mode_map = {
+        # Trial (default)
+        "production": "production",
+        "prod": "production",
+        "uat": "uat",
+        "dev": "dev",
+        "development": "dev",
+        # Enterprise (requires prefix)
+        "enterprise-production": "enterprise-production",
+        "enterprise-prod": "enterprise-production",
+        "enterprise-uat": "enterprise-uat",
+        "enterprise-dev": "enterprise-dev",
+        "enterprise": "enterprise-production",
+        # Local
+        "localdev": "localdev",
+        "local": "localdev",
+    }
+    return env_mode_map.get(raw_mode, default)
+
+
 # Global configuration instance
 _config: BarndoorConfig | None = None
 
@@ -235,7 +227,7 @@ def get_config(token: str | None = None, *, reload: bool = False) -> BarndoorCon
 def load_dotenv_for_sdk(path: Path | None = None, *, override: bool = False) -> None:
     """Load environment variables from .env file."""
     if path is None:
-        mode = os.getenv("MODE", os.getenv("BARNDOOR_ENV", "localdev")).lower()
+        mode = _resolve_environment_mode(default="localdev")
         env_files = {
             "localdev": ".env.localdev",
             "local": ".env.localdev",

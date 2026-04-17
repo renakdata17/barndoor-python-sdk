@@ -38,13 +38,32 @@ class TestConfiguration:
 
     def test_config_mode_detection(self):
         """Test different mode configurations."""
-        with patch.dict("os.environ", {"MODE": "localdev"}):
+        with patch.dict("os.environ", {"MODE": "localdev"}, clear=True):
             config = get_static_config()
             assert config.environment in {"localdev", "local"}
 
-        with patch.dict("os.environ", {"BARNDOOR_ENV": "production"}):
+        with patch.dict("os.environ", {"BARNDOOR_ENV": "production"}, clear=True):
             config = get_static_config()
             assert config.environment in {"production", "prod"}
+
+    def test_barndoor_env_takes_precedence_over_mode(self):
+        """BARNDOOR_ENV should override legacy MODE when both are set."""
+        with patch.dict(
+            "os.environ",
+            {"BARNDOOR_ENV": "uat", "MODE": "development"},
+            clear=True,
+        ):
+            config = get_static_config()
+            assert config.environment == "uat"
+            assert config.auth_issuer == "https://auth.barndooruat.com/realms/barndoor"
+            assert config.base_url == "https://{org_slug}.platform.barndooruat.com"
+
+    def test_mode_still_works_as_legacy_alias(self):
+        """MODE remains supported when BARNDOOR_ENV is unset."""
+        with patch.dict("os.environ", {"MODE": "development"}, clear=True):
+            config = get_static_config()
+            assert config.environment == "dev"
+            assert config.auth_issuer == "https://auth.barndoordev.com/realms/barndoor"
 
     def test_config_immutability(self):
         """Test that config is immutable."""
