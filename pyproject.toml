@@ -54,6 +54,7 @@ testpaths = ["tests"]
 target-version = "py310"
 line-length = 100
 extend-exclude = [
+    "barndoor/proto", # Proto schema build from codegen should not be linted
     "examples",
 ]
 
